@@ -1,0 +1,368 @@
+/* Pantalla de edición de imagen. Va siempre en oscuro, como los visores de
+   fotos (y el lightbox del editor): el tema claro haría competir el fondo con
+   la propia imagen. */
+:host {
+  --barra: 56px;
+  --pie: 72px;
+  display: block;
+  height: 100%;
+  color: #fff;
+}
+
+.anotador {
+  position: relative; /* ancla de la pantalla de carga */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0e0e12;
+}
+
+/* Pantalla de carga: cubre TODO (también la barra y el pie), porque mientras
+   se compone la imagen no hay nada en lo que se pueda tocar. */
+.cargando {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  background: rgba(14, 14, 18, 0.78);
+  cursor: progress;
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.72);
+  }
+}
+
+/* Anillo giratorio, a mano en vez del spinner de Material: este se ve igual en
+   cualquier momento de la vuelta (el de Material hace crecer y encoger su arco,
+   y en el instante malo no es más que un punto). */
+.rueda {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.22);
+  border-top-color: #fff;
+  animation: girar-rueda 0.8s linear infinite;
+}
+
+@keyframes girar-rueda {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+header,
+footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  flex: 0 0 auto;
+}
+
+header {
+  height: var(--barra);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+footer {
+  height: var(--pie);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Herramientas centradas en la barra: el botón de cerrar queda a la izquierda
+   y este bloque ocupa el resto. */
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-inline: auto;
+}
+
+.sep {
+  width: 1px;
+  height: 22px;
+  margin-inline: 6px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* Botón de la barra (mismo patrón que el toolbar del editor: botón desnudo +
+   ligadura de Material Icons). */
+.tb {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+
+  .material-icons {
+    font-size: 20px;
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  &.activa {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+
+  &:disabled {
+    opacity: 0.32;
+    cursor: default;
+  }
+}
+
+.escena {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
+/* Envuelve a la imagen EXACTAMENTE (fit-content), para que el SVG superpuesto
+   coincida con ella píxel a píxel. El tope de altura se calcula contra el
+   viewport porque el diálogo ocupa toda la pantalla. */
+.marco {
+  position: relative;
+  width: fit-content;
+  height: fit-content;
+  line-height: 0;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+
+  img {
+    display: block;
+    max-width: 100%;
+    max-height: calc(100vh - var(--barra) - var(--pie) - 24px);
+  }
+}
+
+.lienzo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+
+  &.sobre {
+    cursor: move;
+  }
+
+  &.escribir {
+    cursor: text;
+  }
+
+  /* Sin herramienta armada no se dibuja: la cruz engañaría. */
+  &.sin-util {
+    cursor: default;
+  }
+
+  /* El acierto sobre una forma lo decide `formas.ts` con su propio margen (el
+     trazo es fino y sería imposible agarrarlo si dependiera del SVG), así que
+     las formas no reciben eventos: todo se escucha en el <svg>. */
+  rect,
+  ellipse,
+  line,
+  polyline,
+  path {
+    fill: none;
+    pointer-events: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  /* La familia y el peso deben ser LOS MISMOS que en `fuenteDe()` de formas.ts:
+     esto es la vista previa y aquello lo que se exporta. */
+  text {
+    pointer-events: none;
+    font-family: Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-weight: 700;
+    white-space: pre;
+    stroke-linejoin: round;
+  }
+
+  /* Zona que se descarta al recortar. */
+  .velo {
+    fill: rgba(0, 0, 0, 0.55);
+  }
+
+  .recorte {
+    stroke: #fff;
+    filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.75));
+  }
+
+  /* Morado: no está en la paleta de dibujo, así que el marco nunca se confunde
+     con la forma que rodea. La sombra oscura lo despega de las imágenes claras
+     (sobre un fondo blanco el morado solo ya costaría de ver). */
+  .seleccion {
+    stroke: #b14dff;
+    filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.75));
+  }
+}
+
+/* Cajetín de escritura. Lleva un fondo crema (como el de WhatsApp) que marca
+   dónde se está escribiendo; es solo mientras se edita, no sale en la imagen.
+   Si el texto va a llevar pastilla, el fondo pasa a ser el color elegido, que
+   entonces sí es lo que se verá. */
+.entrada {
+  position: absolute;
+  box-sizing: content-box; /* el ancho medido es el del TEXTO, sin almohadilla */
+  border: 0;
+  outline: 0;
+  border-radius: 0.28em;
+  background: #f6ead3;
+  font-family: Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 700;
+  line-height: 1.2;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35);
+
+  /* Cursor y marca de agua en oscuro, no en el color elegido: son parte del
+     cajetín (que es crema), no del texto. Si no, con letra blanca no se veía
+     dónde había que escribir. */
+  caret-color: #333;
+
+  &::placeholder {
+    color: rgba(0, 0, 0, 0.38);
+  }
+}
+
+.colores {
+  display: flex;
+  gap: 8px;
+}
+
+/* Giros: ocupan el sitio de la paleta cuando la herramienta es el recorte. */
+.giros,
+.fondo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.rotulo {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.55);
+  margin-right: 2px;
+}
+
+/* Cuerpos de letra: la propia "A" se muestra al tamaño que representa. */
+.tamanos {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.tam {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 34px;
+  border-radius: 8px;
+  font-weight: 700;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  &.activo {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+}
+
+.pie-btn {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.86);
+  cursor: pointer;
+  white-space: nowrap;
+
+  .material-icons {
+    font-size: 19px;
+  }
+
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  &.activo {
+    background: rgba(255, 255, 255, 0.2);
+    color: #fff;
+  }
+
+  &:disabled {
+    opacity: 0.32;
+    cursor: default;
+  }
+}
+
+.color {
+  all: unset;
+  box-sizing: border-box;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+
+  &:hover {
+    transform: scale(1.08);
+  }
+
+  /* Anillo exterior separado del propio color, para que se vea igual de bien
+     con el blanco que con el negro. */
+  &.activo {
+    border-color: #fff;
+    box-shadow: 0 0 0 2px #0e0e12, 0 0 0 4px rgba(255, 255, 255, 0.85);
+  }
+}
+
+.pista {
+  margin: 0 auto;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  .mat-mdc-button {
+    --mdc-text-button-label-text-color: rgba(255, 255, 255, 0.8);
+  }
+}
+
+/* Ventana estrecha: la pista sobra antes que los controles. */
+@media (max-width: 720px) {
+  .pista {
+    display: none;
+  }
+}

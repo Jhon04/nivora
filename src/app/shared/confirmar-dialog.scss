@@ -1,0 +1,10 @@
+/* Acción destructiva: botón de aceptar en rojo (tokens M3 del botón filled). */
+.peligro {
+  --mat-button-filled-container-color: var(--mat-sys-error, #b3261e);
+  --mat-button-filled-label-text-color: var(--mat-sys-on-error, #fff);
+}
+
+mat-dialog-content {
+  /* Sin esto el mensaje queda pegado al título en diálogos de una sola línea. */
+  padding-top: 4px;
+}

@@ -1,0 +1,283 @@
+<div class="anotador">
+  <header>
+    <button type="button" class="tb" (click)="cancelar()" title="Descartar" aria-label="Descartar">
+      <span class="material-icons">close</span>
+    </button>
+
+    <div class="tools">
+      @for (h of herramientas; track h.util) {
+        @if (h.aparte) {
+          <span class="sep"></span>
+        }
+        <button
+          type="button"
+          class="tb"
+          [class.activa]="herramienta() === h.util"
+          (click)="elegirHerramienta(h.util)"
+          [title]="h.titulo"
+          [attr.aria-label]="h.titulo">
+          <span class="material-icons">{{ h.icono }}</span>
+        </button>
+      }
+      <span class="sep"></span>
+      <button
+        type="button"
+        class="tb"
+        (click)="deshacer()"
+        [disabled]="!hayHistoria()"
+        title="Deshacer (Ctrl+Z)"
+        aria-label="Deshacer">
+        <span class="material-icons">undo</span>
+      </button>
+      <button
+        type="button"
+        class="tb"
+        (click)="borrarSeleccionada()"
+        [disabled]="seleccionada() < 0"
+        title="Borrar la forma seleccionada (Supr)"
+        aria-label="Borrar la forma seleccionada">
+        <span class="material-icons">delete</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="escena">
+    <div class="marco" #marco>
+      <img #img [src]="url()" alt="Imagen a editar" (load)="alCargar()" />
+
+      @if (ancho()) {
+        <svg
+          #lienzo
+          class="lienzo"
+          [class.sobre]="sobreForma()"
+          [class.escribir]="herramienta() === 'texto' && !sobreForma()"
+          [class.sin-util]="!herramienta() && !sobreForma()"
+          [attr.viewBox]="'0 0 ' + ancho() + ' ' + alto()"
+          (mousedown)="alPulsar($event)"
+          (mousemove)="alPasar($event)"
+          (click)="alClic($event)"
+          (dblclick)="alDobleClic($event)">
+          @for (f of visibles(); track $index) {
+            @switch (f.tipo) {
+              @case ('rect') {
+                <rect
+                  fill="none"
+                  [attr.x]="caja(f).x"
+                  [attr.y]="caja(f).y"
+                  [attr.width]="caja(f).w"
+                  [attr.height]="caja(f).h"
+                  [attr.rx]="radio(f)"
+                  [attr.stroke]="f.color"
+                  [attr.stroke-width]="f.grosor" />
+              }
+              @case ('circulo') {
+                <ellipse
+                  fill="none"
+                  [attr.cx]="caja(f).x + caja(f).w / 2"
+                  [attr.cy]="caja(f).y + caja(f).h / 2"
+                  [attr.rx]="caja(f).w / 2"
+                  [attr.ry]="caja(f).h / 2"
+                  [attr.stroke]="f.color"
+                  [attr.stroke-width]="f.grosor" />
+              }
+              @case ('texto') {
+                @if (f.fondo) {
+                  <!-- El relleno va en `style` a propósito: el CSS de .lienzo
+                       pone `fill: none` a los rect y un atributo no lo gana. -->
+                  <rect
+                    [style.fill]="colorFondo"
+                    [attr.x]="pastilla(f).x"
+                    [attr.y]="pastilla(f).y"
+                    [attr.width]="pastilla(f).w"
+                    [attr.height]="pastilla(f).h"
+                    [attr.rx]="(f.tam ?? 24) * 0.28" />
+                }
+                <text
+                  [attr.x]="caja(f).x"
+                  [attr.y]="base(f)"
+                  [attr.font-size]="f.tam"
+                  [attr.fill]="f.color">{{ f.texto }}</text>
+              }
+              @default {
+                <line
+                  fill="none"
+                  [attr.x1]="f.x1"
+                  [attr.y1]="f.y1"
+                  [attr.x2]="f.x2"
+                  [attr.y2]="f.y2"
+                  [attr.stroke]="f.color"
+                  [attr.stroke-width]="f.grosor" />
+                @if (f.tipo === 'flecha') {
+                  <polyline
+                    fill="none"
+                    [attr.points]="cabeza(f)"
+                    [attr.stroke]="f.color"
+                    [attr.stroke-width]="f.grosor" />
+                }
+              }
+            }
+          }
+
+          @if (marcoSeleccion(); as m) {
+            <rect
+              class="seleccion"
+              fill="none"
+              [attr.x]="m.x"
+              [attr.y]="m.y"
+              [attr.width]="m.w"
+              [attr.height]="m.h"
+              [attr.stroke-width]="grosor * 0.6"
+              [attr.stroke-dasharray]="grosor * 2" />
+          }
+
+          @if (recorte(); as c) {
+            <path class="velo" fill-rule="evenodd" [attr.d]="velo()" />
+            <rect
+              class="recorte"
+              fill="none"
+              [attr.x]="c.x"
+              [attr.y]="c.y"
+              [attr.width]="c.w"
+              [attr.height]="c.h"
+              [attr.stroke-width]="grosor * 0.7" />
+          }
+        </svg>
+      }
+
+      <!-- Cajetín para escribir, encima del punto donde se hizo clic. Se ve con
+           el mismo cuerpo de letra y color que tendrá el texto al confirmarlo. -->
+      @if (escribiendo(); as e) {
+        @if (cajetin(); as c) {
+          <input
+            #entrada
+            class="entrada"
+            [class.con-fondo]="conFondo()"
+            type="text"
+            placeholder="Escribe…"
+            [value]="e.valor"
+            [style.left.px]="c.izq"
+            [style.top.px]="c.arr"
+            [style.font-size.px]="c.tam"
+            [style.padding]="c.pad"
+            [style.width.px]="c.ancho"
+            (input)="alEscribir($event)"
+            [style.background]="conFondo() ? colorFondo : null"
+            [style.color]="color()"
+            (keydown.enter)="confirmarTexto()"
+            (keydown.escape)="cancelarTexto()"
+            (blur)="confirmarTexto()" />
+        }
+      }
+    </div>
+  </div>
+
+  <footer>
+    <!-- En "Recortar y girar" los colores no pintan nada: la barra pasa a ser
+         la de los giros, como en WhatsApp. -->
+    @if (herramienta() === 'recorte') {
+      <div class="giros">
+        <button type="button" class="pie-btn" (click)="girar(-1)">
+          <span class="material-icons">rotate_left</span> Girar a la izquierda
+        </button>
+        <button type="button" class="pie-btn" (click)="girar(1)">
+          <span class="material-icons">rotate_right</span> Girar a la derecha
+        </button>
+        <button
+          type="button"
+          class="pie-btn"
+          (click)="restablecer()"
+          [disabled]="!imagenTocada()">
+          <span class="material-icons">restart_alt</span> Restablecer
+        </button>
+      </div>
+    } @else {
+      <!-- `mousedown.prevent` en los controles del texto: sin él, al pulsarlos
+           el cajetín perdía el foco, eso lo daba por escrito (blur = confirmar)
+           y el cambio llegaba tarde, cuando ya no había nada que cambiar. -->
+      <div class="colores">
+        @for (c of colores; track c) {
+          <button
+            type="button"
+            class="color"
+            [class.activo]="color() === c"
+            [style.background]="c"
+            (mousedown)="$event.preventDefault()"
+            (click)="elegirColor(c)"
+            [attr.aria-label]="'Color ' + c"></button>
+        }
+      </div>
+
+      @if (modoTexto()) {
+        <span class="sep"></span>
+        <div class="tamanos">
+          @for (t of tamanos; track t.mult) {
+            <button
+              type="button"
+              class="tam"
+              [class.activo]="tamElegido() === t.mult"
+              [style.font-size.px]="10 + t.mult * 5"
+              (mousedown)="$event.preventDefault()"
+              (click)="elegirTam(t.mult)"
+              [title]="t.titulo"
+              [attr.aria-label]="t.titulo">{{ t.etiqueta }}</button>
+          }
+        </div>
+
+        <span class="sep"></span>
+        <div class="fondo">
+          <span class="rotulo">Fondo</span>
+          <button
+            type="button"
+            class="pie-btn"
+            [class.activo]="!conFondo()"
+            (mousedown)="$event.preventDefault()"
+            (click)="alternarFondo(false)">
+            Sin
+          </button>
+          <button
+            type="button"
+            class="pie-btn"
+            [class.activo]="conFondo()"
+            (mousedown)="$event.preventDefault()"
+            (click)="alternarFondo(true)">
+            Con
+          </button>
+        </div>
+      }
+    }
+
+    <p class="pista">
+      @if (herramienta() === 'recorte') {
+        Arrastra para elegir la zona que quieres conservar.
+      } @else if (modoTexto()) {
+        Clic para escribir, Enter para colocarlo; doble clic para retocarlo.
+      } @else if (!herramienta()) {
+        Arrastra las formas para moverlas, o elige una herramienta para añadir otra.
+      } @else {
+        Arrastra sobre la imagen para dibujar; sobre una forma, para moverla.
+      }
+    </p>
+
+    <div class="acciones">
+      <button mat-button type="button" (click)="cancelar()" [disabled]="cargando()">
+        Cancelar
+      </button>
+      <button
+        mat-flat-button
+        type="button"
+        (click)="aceptar()"
+        [disabled]="!ancho() || cargando()">
+        Insertar
+      </button>
+    </div>
+  </footer>
+
+  <!-- Tapa la pantalla mientras se compone y se guarda la imagen: hasta que no
+       termina, el hilo está ocupado y la app parecería colgada. -->
+  @if (cargando()) {
+    <div class="cargando">
+      <span class="rueda"></span>
+      <p>Guardando la imagen…</p>
+    </div>
+  }
+</div>

@@ -1,0 +1,65 @@
+<!-- Menú flotante al seleccionar texto (estilo Notion) -->
+<div tiptapBubbleMenu [editor]="editor" [options]="bubbleOptions" class="bubble">
+  <button type="button" (click)="toggleBold()" [class.activo]="isActive('bold')" title="Negrita"><b>B</b></button>
+  <button type="button" (click)="toggleItalic()" [class.activo]="isActive('italic')" title="Cursiva"><i>I</i></button>
+  <button type="button" (click)="toggleStrike()" [class.activo]="isActive('strike')" title="Tachado"><s>S</s></button>
+  <button type="button" (click)="toggleCode()" [class.activo]="isActive('code')" title="Código">&lt;/&gt;</button>
+  <span class="sep"></span>
+  <button type="button" (click)="toggleHeading(1)" [class.activo]="isActive('heading', { level: 1 })" title="Título 1">H1</button>
+  <button type="button" (click)="toggleHeading(2)" [class.activo]="isActive('heading', { level: 2 })" title="Título 2">H2</button>
+  <button type="button" (click)="toggleBullet()" [class.activo]="isActive('bulletList')" title="Lista">•</button>
+  <button type="button" (click)="toggleTasks()" [class.activo]="isActive('taskList')" title="Tareas">☑</button>
+  <button type="button" (click)="toggleQuote()" [class.activo]="isActive('blockquote')" title="Cita">❝</button>
+</div>
+
+<!-- Área editable (Tiptap se monta aquí) -->
+<div tiptap [editor]="editor" class="prose"></div>
+
+<!-- Slash menu (/) -->
+@if (slashOpen() && slashItems().length) {
+  <div
+    class="slash-menu"
+    [class.arriba]="slashPos().arriba"
+    [style.left.px]="slashPos().left"
+    [style.top.px]="slashPos().top"
+    (mousedown)="$event.preventDefault()">
+    @for (item of slashItems(); track item.title; let i = $index) {
+      <button
+        type="button"
+        class="slash-item"
+        [class.sel]="i === slashIndex()"
+        (mouseenter)="slashIndex.set(i)"
+        (click)="slashPick(i)">
+        <span class="ico">{{ item.icon }}</span>
+        <span class="meta">
+          <span class="t">{{ item.title }}</span>
+          <span class="s">{{ item.subtitle }}</span>
+        </span>
+      </button>
+    }
+  </div>
+}
+
+<!-- Visor de imagen a tamaño completo (doble clic en una imagen).
+     Rueda para acercar, arrastrar para moverse, doble clic para alternar. -->
+@if (lightbox(); as url) {
+  <div class="lightbox" #visor (click)="alClicVisor()" (wheel)="alRueda($event)">
+    <img
+      #visorImg
+      [src]="url"
+      alt="Imagen a tamaño completo"
+      [class.ampliada]="zoom() > 1"
+      [style.transform]="
+        'translate(' + desp().x + 'px, ' + desp().y + 'px) scale(' + zoom() + ')'
+      "
+      (click)="alClicImagen($event)"
+      (mousedown)="alPulsarVisor($event)"
+      (dblclick)="alternarZoom($event)" />
+    <button type="button" class="lightbox-cerrar" (click)="cerrarLightbox()" aria-label="Cerrar">
+      <span class="material-icons">close</span>
+    </button>
+    @if (zoom() > 1) {
+      <span class="lightbox-zoom">{{ porcentajeZoom() }}</span>
+    }
+  </div>
+}

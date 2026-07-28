@@ -1,0 +1,15 @@
+@if (datos.titulo) {
+  <h2 mat-dialog-title>{{ datos.titulo }}</h2>
+}
+
+<mat-dialog-content>{{ datos.mensaje }}</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <!-- El foco inicial va a Cancelar: con Enter no se borra nada sin querer. -->
+  <button mat-button cdkFocusInitial [mat-dialog-close]="false">
+    {{ datos.cancelar ?? 'Cancelar' }}
+  </button>
+  <button mat-flat-button [class.peligro]="datos.peligro" [mat-dialog-close]="true">
+    {{ datos.aceptar ?? 'Aceptar' }}
+  </button>
+</mat-dialog-actions>

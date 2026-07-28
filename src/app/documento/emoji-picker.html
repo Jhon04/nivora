@@ -1,0 +1,46 @@
+<div class="ep-backdrop" (click)="cerrar.emit()"></div>
+
+<div class="ep-panel">
+  <div class="ep-buscar">
+    <span class="material-icons">search</span>
+    <input
+      #inputBuscar
+      type="search"
+      [ngModel]="busqueda()"
+      (ngModelChange)="busqueda.set($event)"
+      placeholder="Buscar emoji…"
+      aria-label="Buscar emoji" />
+  </div>
+
+  @if (!buscando()) {
+    <div class="ep-tabs">
+      @for (c of categorias; track c.id) {
+        <button
+          type="button"
+          class="ep-tab"
+          [class.sel]="activa() === c.id"
+          (click)="elegirCategoria(c.id)"
+          [attr.aria-label]="c.id">
+          {{ c.etiqueta }}
+        </button>
+      }
+    </div>
+  }
+
+  @if (emojis().length) {
+    <div class="ep-grid">
+      @for (em of emojis(); track em.e) {
+        <button type="button" class="ep-emoji" [title]="em.k" (click)="seleccionar(em.e)">
+          {{ em.e }}
+        </button>
+      }
+    </div>
+  } @else {
+    <p class="ep-vacio">Sin resultados</p>
+  }
+
+  <div class="ep-pie">
+    <button type="button" class="ep-accion" (click)="aleatorio()">🎲 Aleatorio</button>
+    <button type="button" class="ep-accion" (click)="quitar()">Quitar icono</button>
+  </div>
+</div>

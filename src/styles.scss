@@ -1,1 +1,770 @@
+
+// Include theming for Angular Material with `mat.theme()`.
+// This Sass mixin will define CSS variables that are used for styling Angular Material
+// components according to the Material 3 design spec.
+// Learn more about theming and how to use it for your application's
+// custom components at https://material.angular.dev/guide/theming
+@use '@angular/material' as mat;
+@use 'tema-colores' as tc;
+
+html {
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$blue-palette,
+    ),
+    typography: Roboto,
+    density: 0,
+  ));
+
+  /* mat.theme() emite sus colores como light-dark(claro, oscuro), así que el
+     tema entero (y los controles nativos) depende de color-scheme. El atributo
+     data-tema lo pone TemaService en <html> según la preferencia guardada. */
+  color-scheme: light dark; // 'sistema': sigue al escritorio
+
+  &[data-tema='claro'] { color-scheme: light; }
+  &[data-tema='oscuro'] { color-scheme: dark; }
+
+  /* Capas y sombras propias, en las dos variantes. Se usan en toda la app en
+     lugar de rgba(0,0,0,…) fijos, que en oscuro no se ven. */
+  --capa-suave: light-dark(rgba(0, 0, 0, 0.05), rgba(255, 255, 255, 0.06));
+  --capa-hover: light-dark(rgba(0, 0, 0, 0.06), rgba(255, 255, 255, 0.09));
+  --capa-hover-fuerte: light-dark(rgba(0, 0, 0, 0.12), rgba(255, 255, 255, 0.18));
+  --texto-tenue: light-dark(rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.38));
+  --sombra-color: light-dark(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.6));
+  --verde-ok: light-dark(#2e7d32, #7ee787);
+}
+
+body {
+  // Set a default background, font and text colors for the application using
+  // Angular Material's system-level CSS variables. Learn more about these
+  // variables at https://material.angular.dev/guide/system-variables
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+
+  // Reset the user agent margin.
+  margin: 0;
+}
 /* You can add global styles to this file, and also import other style files */
+
+/* El padding y el borde cuentan dentro del ancho (si no, un width:100% con
+   padding se desborda justo por el ancho del padding). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: Roboto, "Helvetica Neue", sans-serif;
+  /* WebKit (webview de Tauri) pinta el texto más grueso por defecto; con
+     grayscale AA se ve con el peso real de Roboto. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------- Roboto (self-host, offline) ----------
+   Roboto ESTÁTICO por peso (@fontsource, subset latin → cubre el español).
+   Se usan estáticos a propósito: la fuente variable de Google rendea mal en
+   WebKitGTK (el webview de Tauri en Linux) — cambiaba de grosor/caía al
+   fallback al escribir. Un archivo por peso evita ese problema. */
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url('/fonts/roboto-300.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/roboto-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/roboto-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Roboto';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/roboto-700.woff2') format('woff2');
+}
+
+/* ---------- Material Icons (self-host, offline) ----------
+   Fuente en public/fonts/ → servida en /fonts/. Cubre <span class="material-icons">
+   y <mat-icon> (que usa la clase 'material-icons' por defecto). font-display:block
+   evita ver el nombre del icono como texto antes de cargar la fuente. */
+@font-face {
+  font-family: 'Material Icons';
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url('/fonts/material-icons.woff2') format('woff2');
+}
+
+.material-icons {
+  font-family: 'Material Icons';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- Desplegables del toolbar (CDK Overlay) ----------
+   Se renderizan fuera de los componentes (contenedor del overlay), por eso van
+   aquí en global; el CDK ya se encarga de posicionarlos. */
+.menu-titulos {
+  min-width: 175px;
+  padding: 4px;
+  background: var(--mat-sys-surface-container, #fff);
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  box-shadow: 0 12px 32px var(--sombra-color);
+}
+
+.menu-item {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 9px;
+  border-radius: 7px;
+  font-size: 0.88rem;
+  color: var(--mat-sys-on-surface, #1a1a1a);
+
+  &:hover {
+    background: var(--capa-hover);
+  }
+
+  &.activo {
+    color: var(--mat-sys-primary, #3b82f6);
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 14%, transparent);
+  }
+
+  .h-badge {
+    flex: 0 0 auto;
+    display: inline-grid;
+    place-items: center;
+    min-width: 28px;
+    height: 20px;
+    border-radius: 5px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: var(--capa-suave);
+  }
+
+  .menu-ico {
+    flex: 0 0 auto;
+    width: 28px;
+    font-size: 20px;
+    text-align: center;
+  }
+}
+
+.enlace-pop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  background: var(--mat-sys-surface-container, #fff);
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+  border-radius: 9px;
+  box-shadow: 0 10px 28px var(--sombra-color);
+}
+
+/* Paleta de colores (color de texto / resaltado). */
+.menu-colores {
+  padding: 6px;
+  background: var(--mat-sys-surface-container, #fff);
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  border-radius: 10px;
+  box-shadow: 0 12px 32px var(--sombra-color);
+
+  .swatches {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 5px;
+    padding: 2px;
+  }
+
+  .swatch {
+    all: unset;
+    cursor: pointer;
+    width: 22px;
+    height: 22px;
+    border-radius: 5px;
+    border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+    transition: transform 0.1s ease;
+
+    /* La muestra enseña el color YA adaptado al tema: lo que se ve en la
+       paleta es exactamente lo que aparecerá en el documento. */
+    &.txt { background: tc.texto(); }
+    &.hl { background: tc.resaltado(); }
+
+    &:hover {
+      transform: scale(1.12);
+    }
+
+    &.sel {
+      outline: 2px solid var(--mat-sys-primary, #3b82f6);
+      outline-offset: 1px;
+    }
+  }
+
+  .menu-item.quitar {
+    margin-top: 6px;
+    padding-top: 8px;
+    border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.1));
+    border-radius: 0;
+  }
+}
+
+.enlace-input {
+  width: 230px;
+  max-width: 60vw;
+  padding: 5px 8px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.18));
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.85rem;
+  outline: none;
+
+  &:focus {
+    border-color: var(--mat-sys-primary, #3b82f6);
+  }
+}
+
+/* Botón discreto reutilizable (portada, acciones del encabezado, popover de enlace). */
+.mini-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  color: var(--mat-sys-on-surface, #1a1a1a);
+  background: var(--capa-suave);
+
+  .material-icons {
+    font-size: 18px;
+  }
+
+  &:hover {
+    background: var(--capa-hover-fuerte);
+  }
+}
+
+/* ---------- Editor Tiptap (ProseMirror) ---------- */
+.ProseMirror {
+  outline: none;
+  line-height: 1.65;
+  font-size: 1rem;
+  max-width: 100%;
+  /* Que el texto largo (URLs, palabras sin espacios) se parta en vez de
+     ensanchar el editor y provocar scroll lateral. */
+  overflow-wrap: break-word;
+  word-break: break-word;
+
+  > * + * { margin-top: 0.6em; }
+
+  h1 { font-size: 1.9rem; font-weight: 700; margin-top: 1.2em; line-height: 1.2; }
+  h2 { font-size: 1.5rem; font-weight: 700; margin-top: 1em; line-height: 1.25; }
+  h3 { font-size: 1.2rem; font-weight: 600; margin-top: 0.8em; }
+  h4 { font-size: 1.05rem; font-weight: 600; margin-top: 0.7em; }
+
+  img {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+    margin: 0.5rem 0;
+
+    &.ProseMirror-selectednode {
+      outline: 2px solid #3b82f6;
+      outline-offset: 2px;
+    }
+  }
+
+  ul, ol { padding-left: 1.4rem; }
+
+  /* ---------- Listas planas (ver lista-plana.ts) ----------
+     Cada línea es un bloque suelto con data-tipo y data-nivel; lo que parece
+     "una lista" son bloques consecutivos. La sangría es margen y la numeración
+     la componen contadores CSS contando hermanos del mismo nivel. */
+  .bl {
+    position: relative;
+    padding-left: 1.6em;
+    margin-top: 0.15em;
+
+    /* Marcador (viñeta, número o casilla) en el hueco de la izquierda. */
+    &::before {
+      position: absolute;
+      right: 100%;
+      margin-right: -1.6em;
+      /* Sin ancho fijo: la caja se ajusta al contenido y queda anclada por su
+         borde derecho, así que un número largo (1.1.1) crece hacia la
+         IZQUIERDA, sobre el hueco vacío de la sangría, y nunca empuja ni toca
+         el texto. El padding es la separación con él. */
+      padding-right: 0.4em;
+      white-space: nowrap;
+      font-variant-numeric: tabular-nums;
+    }
+  }
+
+  .bl[data-tipo='tarea']::before { content: none; }
+
+  /* Cualquier bloque que no sea de lista corta la serie de numeración. */
+  > :not(.bl) {
+    counter-reset: n0 n1 n2 n3 n4 n5;
+  }
+
+  .bl[data-nivel='0'] {
+    margin-left: 0.0em;
+    /* Al cambiar de nivel se reinician los contadores más profundos. */
+    counter-reset: n1 n2 n3 n4 n5;
+  }
+
+  .bl[data-nivel='0']:not([data-tipo='numerada']) {
+    counter-reset: n0 n1 n2 n3 n4 n5;
+  }
+
+  .bl[data-nivel='0'][data-tipo='numerada'] {
+    counter-increment: n0;
+    &::before { content: counter(n0) '.'; }
+  }
+
+  .bl[data-nivel='0'][data-tipo='vinetas']::before {
+    content: '•';
+  }
+
+  .bl[data-nivel='1'] {
+    margin-left: 1.6em;
+    /* Al cambiar de nivel se reinician los contadores más profundos. */
+    counter-reset: n2 n3 n4 n5;
+  }
+
+  .bl[data-nivel='1']:not([data-tipo='numerada']) {
+    counter-reset: n1 n2 n3 n4 n5;
+  }
+
+  .bl[data-nivel='1'][data-tipo='numerada'] {
+    counter-increment: n1;
+    &::before { content: counter(n0) '.' counter(n1); }
+  }
+
+  .bl[data-nivel='1'][data-tipo='vinetas']::before {
+    content: '◦';
+  }
+
+  .bl[data-nivel='2'] {
+    margin-left: 3.2em;
+    /* Al cambiar de nivel se reinician los contadores más profundos. */
+    counter-reset: n3 n4 n5;
+  }
+
+  .bl[data-nivel='2']:not([data-tipo='numerada']) {
+    counter-reset: n2 n3 n4 n5;
+  }
+
+  .bl[data-nivel='2'][data-tipo='numerada'] {
+    counter-increment: n2;
+    &::before { content: counter(n0) '.' counter(n1) '.' counter(n2); }
+  }
+
+  .bl[data-nivel='2'][data-tipo='vinetas']::before {
+    content: '▪';
+  }
+
+  .bl[data-nivel='3'] {
+    margin-left: 4.800000000000001em;
+    /* Al cambiar de nivel se reinician los contadores más profundos. */
+    counter-reset: n4 n5;
+  }
+
+  .bl[data-nivel='3']:not([data-tipo='numerada']) {
+    counter-reset: n3 n4 n5;
+  }
+
+  .bl[data-nivel='3'][data-tipo='numerada'] {
+    counter-increment: n3;
+    &::before { content: counter(n0) '.' counter(n1) '.' counter(n2) '.' counter(n3); }
+  }
+
+  .bl[data-nivel='3'][data-tipo='vinetas']::before {
+    content: '•';
+  }
+
+  .bl[data-nivel='4'] {
+    margin-left: 6.4em;
+    /* Al cambiar de nivel se reinician los contadores más profundos. */
+    counter-reset: n5;
+  }
+
+  .bl[data-nivel='4']:not([data-tipo='numerada']) {
+    counter-reset: n4 n5;
+  }
+
+  .bl[data-nivel='4'][data-tipo='numerada'] {
+    counter-increment: n4;
+    &::before { content: counter(n0) '.' counter(n1) '.' counter(n2) '.' counter(n3) '.' counter(n4); }
+  }
+
+  .bl[data-nivel='4'][data-tipo='vinetas']::before {
+    content: '◦';
+  }
+
+  .bl[data-nivel='5'] {
+    margin-left: 8.0em;
+    /* Al cambiar de nivel se reinician los contadores más profundos. */
+    counter-reset: n5;
+  }
+
+  .bl[data-nivel='5']:not([data-tipo='numerada']) {
+    counter-reset: n5;
+  }
+
+  .bl[data-nivel='5'][data-tipo='numerada'] {
+    counter-increment: n5;
+    &::before { content: counter(n0) '.' counter(n1) '.' counter(n2) '.' counter(n3) '.' counter(n4) '.' counter(n5); }
+  }
+
+  .bl[data-nivel='5'][data-tipo='vinetas']::before {
+    content: '▪';
+  }
+
+  /* Casilla de las tareas: dibujada por nosotros (la nativa redimensionada
+     descuadra el visto). */
+  .bl-casilla {
+    position: absolute;
+    right: 100%;
+    margin-right: -1.35em;
+    display: flex;
+    align-items: center;
+    height: 1lh;
+    user-select: none;
+  }
+
+  .bl[data-marcada] .bl-txt {
+    opacity: 0.55;
+    text-decoration: line-through;
+  }
+
+  /* Color de texto y resaltado: se pisa el estilo en línea (que lleva el color
+     original, portable) por la versión adaptada al tema. Hace falta !important
+     porque un estilo en línea gana a cualquier regla de la hoja. */
+  .txt-color {
+    color: tc.texto() !important;
+  }
+
+  mark[data-color] {
+    background-color: tc.resaltado() !important;
+  }
+
+  mark {
+    border-radius: 4px;
+    /* Un poco de aire para que el fondo no vaya pegado a las letras.
+       SIN margen negativo a propósito: lo compensaba para que el texto no se
+       moviera, pero al resaltar media palabra ("pro[blema]") el fondo se metía
+       encima de la letra anterior y se la comía. Prefiero que el resaltado
+       ocupe sus 0,2em antes que tapar una letra. */
+    padding: 0 0.1em;
+
+    /* Si el resaltado salta de renglón, redondea cada línea por separado. Sin
+       esto solo se redondean el principio y el final, y los cortes de línea
+       quedan rectos. */
+    -webkit-box-decoration-break: clone;
+    box-decoration-break: clone;
+  }
+
+  code {
+    background: rgba(120, 120, 120, 0.16);
+    border-radius: 4px;
+    padding: 0.15em 0.35em;
+    font-size: 0.9em;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  }
+
+  pre {
+    background: #0d1117;
+    color: #e6edf3;
+    /* Hueco arriba para que el botón "Copiar" no tape el código. */
+    padding: 2.4rem 1rem 0.9rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0;
+
+    code { background: none; padding: 0; color: inherit; }
+  }
+
+  /* Bloque de código con botón "Copiar" (NodeView), siempre visible. */
+  .code-block {
+    position: relative;
+  }
+
+  .code-copy {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border: none;
+    border-radius: 6px;
+    padding: 4px 9px;
+    font-size: 0.74rem;
+    font-family: inherit;
+    color: #c9d1d9;
+    background: rgba(255, 255, 255, 0.1);
+    transition: background 0.12s ease, color 0.12s ease;
+
+    .material-icons {
+      font-size: 15px;
+    }
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.22);
+      color: #fff;
+    }
+
+    &.ok {
+      color: #7ee787;
+    }
+  }
+
+  /* Placeholder (@tiptap/extension-placeholder) */
+  p.is-editor-empty:first-child::before {
+    content: attr(data-placeholder);
+    float: left;
+    height: 0;
+    pointer-events: none;
+    color: var(--texto-tenue);
+  }
+
+  /* Casilla de las tareas, dibujada por nosotros: al forzarle el tamaño a la
+     casilla nativa, el navegador sigue pintando el visto del tema del sistema a
+     su tamaño fijo y queda descuadrado. Con appearance:none controlamos caja y
+     visto, y además se puede tematizar. */
+  .bl-casilla input[type='checkbox'] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    cursor: pointer;
+    border: 1.5px solid var(--mat-sys-outline, rgba(0, 0, 0, 0.45));
+    border-radius: 4px;
+    background: transparent;
+    /* grid + place-content centra el visto exactamente en la caja. */
+    display: grid;
+    place-content: center;
+    transition: background 0.12s ease, border-color 0.12s ease;
+
+    &::before {
+      content: '';
+      width: 10px;
+      height: 10px;
+      background: var(--mat-sys-on-primary, #fff);
+      /* El "visto" como recorte: nítido a cualquier tamaño y sin fuentes. */
+      clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+      transform: scale(0);
+      transition: transform 0.1s ease;
+    }
+
+    &:checked {
+      background: var(--mat-sys-primary, #3b82f6);
+      border-color: var(--mat-sys-primary, #3b82f6);
+
+      &::before { transform: scale(1); }
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--mat-sys-primary, #3b82f6);
+      outline-offset: 2px;
+    }
+  }
+}
+
+/* Drag handle propio (block-drag.ts) — reordena con eventos de puntero, no con
+   DnD nativo (roto en WebKitGTK). El elemento vive en <body>, por eso es global. */
+.block-drag-handle {
+  position: fixed;
+  /* Por DEBAJO de la barra de herramientas (z-index 10 en app.scss): al
+     desplazar, el bloque señalado puede quedar bajo la barra fija y el handle
+     no debe verse flotando sobre ella. El fantasma y el menú sí van por
+     encima, porque son acciones en curso. */
+  z-index: 5;
+  width: 22px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  /* Icono Material: pisa el font-size de .material-icons (24px), que se saldría
+     de la caja de 22×24. El glifo va centrado en su cuadratín, así que con el
+     flex de arriba queda centrado exacto. */
+  font-size: 18px;
+  line-height: 1;
+  color: light-dark(rgba(0, 0, 0, 0.32), rgba(255, 255, 255, 0.38));
+  cursor: grab;
+  user-select: none;
+  transition: background 0.12s ease, color 0.12s ease;
+
+  &:hover {
+    background: var(--capa-hover);
+    color: light-dark(rgba(0, 0, 0, 0.7), rgba(255, 255, 255, 0.8));
+  }
+
+  &.activo {
+    cursor: grabbing;
+    background: rgba(59, 130, 246, 0.16);
+    color: #3b82f6;
+  }
+}
+
+/* Menú del handle de bloques (clic en el ⠿). Reutiliza .menu-titulos/.menu-item
+   del toolbar; solo añade lo propio. Vive en <body>, por eso es global. */
+.block-menu {
+  min-width: 208px;
+  max-height: 60vh;
+  overflow-y: auto;
+
+  .menu-etiqueta {
+    padding: 8px 9px 3px;
+    font-size: 0.68rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.55;
+  }
+
+  .menu-sep {
+    height: 1px;
+    margin: 4px 2px;
+    background: var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  }
+
+  /* Iconos que son texto (¶, H1, •…), como en el menú "/". */
+  .ico-txt {
+    font-weight: 600;
+    font-size: 0.78rem;
+  }
+}
+
+/* Destello del bloque recién soltado: azul translúcido que se apaga solo. La
+   duración debe coincidir con DESTELLO_MS de block-drag.ts. */
+.ProseMirror .block-soltado {
+  border-radius: 6px;
+  animation: bloque-soltado 0.9s ease-out;
+}
+
+@keyframes bloque-soltado {
+  /* Aguanta el color casi medio segundo antes de apagarse: si se desvanece
+     desde el primer fotograma casi no da tiempo a verlo. */
+  0%,
+  45% {
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 24%, transparent);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 24%, transparent);
+  }
+
+  100% {
+    background: transparent;
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+/* Bloque sobre el que está abierto el menú. */
+.ProseMirror .block-activo {
+  background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 10%, transparent);
+  border-radius: 6px;
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 10%, transparent);
+}
+
+/* Copia del bloque que viaja con el cursor mientras se arrastra. Se coloca con
+   transform (no con top/left) para que el navegador la mueva sin recalcular
+   diseño en cada mousemove. */
+/* La doble clase no es cosmética: la copia lleva también la clase ProseMirror
+   para heredar los estilos del contenido, y prosemirror-view inyecta en runtime
+   `.ProseMirror { position: relative }`. Con un solo `.block-drag-ghost` empatan
+   en especificidad y gana la suya por ir después en la cascada: la copia caía al
+   flujo normal, detrás de la app, y no se veía nunca. */
+.block-drag-ghost.block-drag-ghost {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 55;
+  pointer-events: none;
+  padding: 2px 12px;
+  max-height: 180px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--mat-sys-surface-container, #fff);
+  box-shadow: 0 12px 30px var(--sombra-color);
+  /* Apenas translúcido: la sensación de "levantado" la da la sombra. Aquí NO
+     se usa backdrop-filter para difuminar el fondo porque WebKitGTK (el webview
+     de Tauri) no lo aplica —comprobado renderizando en ese motor— y entonces se
+     leería el texto del documento a través de la copia. */
+  opacity: 0.95;
+
+  /* Solo cuando el bloque no cabe entero: se difumina el corte de abajo. La
+     clase la pone block-drag.ts al medir el contenido; aplicarla siempre
+     desvanecería también los bloques de una línea. */
+  &.recortado {
+    mask-image: linear-gradient(to bottom, #000 70%, transparent);
+    -webkit-mask-image: linear-gradient(to bottom, #000 70%, transparent);
+  }
+}
+
+/* El original se atenúa mientras su copia viaja. */
+.ProseMirror .block-arrastrando {
+  opacity: 0.35;
+}
+
+/* Línea azul que marca dónde caerá el bloque al soltar. */
+.block-drop-indicator {
+  position: fixed;
+  z-index: 4; /* igual que el handle: nunca sobre la barra de herramientas */
+  height: 3px;
+  border-radius: 2px;
+  background: #3b82f6;
+  pointer-events: none;
+  transform: translateY(-1.5px);
+}
+
+/* ---------- Editor de imagen (anotar-imagen.ts) ----------
+   El diálogo va a pantalla completa y pinta su propio fondo oscuro, así que
+   aquí solo se le quita a Material la caja de siempre (esquinas y color de
+   superficie). Los tokens son los de M3: nada de tocar clases internas. */
+.panel-anotar {
+  --mat-dialog-container-shape: 0;
+  --mat-dialog-container-color: #0e0e12;
+  --mat-dialog-container-elevation-shadow: none;
+}

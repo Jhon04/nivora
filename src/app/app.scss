@@ -1,0 +1,684 @@
+@use '../tema-colores' as tc;
+
+.app {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+  overflow: hidden;
+  transition: grid-template-columns 0.18s ease;
+
+  &.colapsada {
+    grid-template-columns: 56px 1fr;
+  }
+}
+
+.sidebar {
+  border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  /* El scroll lo hace .side-lista, no la barra entera: así la cabecera y el
+     pie (tema) no se van al desplazar la lista de documentos. */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.side-lista {
+  flex: 1 1 auto;
+  /* min-height:0 es lo que permite que un hijo flex encoja y muestre scroll. */
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Pie de la barra lateral: selector de tema. */
+.side-pie {
+  flex: 0 0 auto;
+  display: flex;
+  padding: 6px;
+  border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+
+  .colapsada & {
+    justify-content: center;
+  }
+}
+
+.btn-tema {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 8px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6));
+
+  .material-icons {
+    font-size: 20px;
+  }
+
+  &:hover {
+    background: var(--capa-hover);
+  }
+
+  .colapsada & {
+    width: 36px;
+    justify-content: center;
+    padding: 0;
+  }
+}
+
+.side-head {
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+
+  h1 {
+    margin: 0;
+    font-size: 1.25rem;
+  }
+
+  .colapsada & {
+    padding: 0.5rem;
+    align-items: center;
+  }
+}
+
+/* Fila superior: hamburguesa (+ título cuando está expandida). */
+.side-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hamburguesa {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: var(--mat-sys-on-surface, #1a1a1a);
+
+  &:hover {
+    background: var(--capa-hover);
+  }
+}
+
+/* Botón "Nuevo" en modo colapsado (solo icono +). */
+.ico-btn {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  color: var(--mat-sys-on-primary, #fff);
+  background: var(--mat-sys-primary, #3b82f6);
+
+  &:hover {
+    filter: brightness(1.06);
+  }
+}
+
+/* Lista de solo iconos (documentos) en modo colapsado. */
+.lista-iconos {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.doc-ico-btn {
+  all: unset;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  font-size: 1.25rem;
+  line-height: 1;
+
+  &:hover {
+    background: var(--capa-hover);
+  }
+
+  &.sel {
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 16%, transparent);
+  }
+}
+
+.vacio {
+  padding: 0 1rem;
+  opacity: 0.55;
+  font-style: italic;
+}
+
+/* Buscador de la barra lateral. */
+.buscador {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--capa-suave);
+
+  .material-icons {
+    font-size: 20px;
+    opacity: 0.55;
+  }
+
+  input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.9rem;
+
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+  }
+}
+
+.buscador-limpiar {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  border-radius: 50%;
+  padding: 2px;
+
+  .material-icons {
+    font-size: 18px;
+    opacity: 0.7;
+  }
+
+  &:hover {
+    background: var(--capa-hover-fuerte);
+  }
+}
+
+/* Filtro por etiqueta en la barra lateral. */
+.etiquetas-filtro {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 4px 12px 10px;
+}
+
+/* Chip de etiqueta (filtro y documento). */
+.chip-tag {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  line-height: 1.6;
+  white-space: nowrap;
+
+  &.activa {
+    font-weight: 600;
+  }
+
+  .chip-usos {
+    opacity: 0.65;
+    font-size: 0.68rem;
+  }
+
+  .chip-x {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    line-height: 1;
+    opacity: 0.6;
+
+    &:hover {
+      opacity: 1;
+      background: var(--capa-hover-fuerte);
+    }
+  }
+}
+
+/* Fila de etiquetas del documento (chips + input). */
+.doc-etiquetas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 1.25rem;
+}
+
+.etiqueta-input {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 0.8rem;
+  padding: 2px 4px;
+  min-width: 90px;
+
+  &::placeholder {
+    color: var(--texto-tenue);
+  }
+}
+
+/* Fragmento (2ª línea) de los resultados de búsqueda. */
+.frag {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.8rem;
+  opacity: 0.75;
+  white-space: normal;
+}
+
+/* Resaltado de términos encontrados (título y fragmento). */
+.sidebar mark {
+  background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 30%, transparent);
+  color: inherit;
+  border-radius: 3px;
+  padding: 0 1px;
+}
+
+/* Listas de la barra lateral (documentos y resultados): separadas de los bordes. */
+mat-nav-list {
+  padding-inline: 1rem;
+  /* Columna con hueco para separar los ítems exactamente 2px. */
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  /* Alto de cada opción de una línea (por defecto Material usa 48px). */
+  --mat-list-list-item-one-line-container-height: 40px;
+
+  .mat-mdc-list-item {
+    /* Sin esto, en contenedor flex los ítems se encogen por debajo de su alto. */
+    flex: 0 0 auto;
+    border-radius: 8px;
+    /* Recorta el ripple y la capa de hover que Material pinta dentro del ítem. */
+    overflow: hidden;
+  }
+
+  /* Botón de eliminar: 30px y capa de hover cuadrada en vez de circular. */
+  .mat-mdc-icon-button {
+    --mat-icon-button-state-layer-size: 30px;
+    --mat-icon-button-container-shape: 4px;
+    --mat-icon-button-icon-size: 18px;
+    /* El área táctil oculta de 48px se comería los clics de la fila alrededor
+       del botón, que ahora es bastante más pequeño. */
+    --mat-icon-button-touch-target-display: none;
+
+    /* Centrado del icono: las capas de ripple van en position:absolute, así que
+       mat-icon es el único hijo en flujo. */
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    /* Material da 16px por la clase mdc-list-item__end de matListItemMeta. */
+    margin-right: 5px;
+
+    /* El token solo encoge el glifo: la caja de mat-icon sigue en 24px. */
+    .mat-icon {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 18px;
+      height: 18px;
+      font-size: 18px;
+    }
+  }
+}
+
+.sel {
+  background: color-mix(in srgb, var(--mat-sys-primary) 12%, transparent);
+}
+
+.pane {
+  /* El scroll lo hace .pane-scroll, no el panel entero: si lo hiciera aquí, la
+     barra de desplazamiento recorrería también el alto de la barra de
+     herramientas y la cruzaría por arriba. */
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  /* Sin esto, el item del grid no se encoge por debajo de su contenido
+     (min-width:auto) y aparece scroll lateral al estrechar la ventana. */
+  min-width: 0;
+}
+
+.pane-scroll {
+  flex: 1 1 auto;
+  /* min-height:0 es lo que permite que un hijo flex encoja y muestre scroll. */
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Barra de herramientas fija arriba (como en Word). En una sola fila: si no
+   caben todos los botones, se desplaza en horizontal (rueda o arrastrando)
+   en vez de saltar a otra línea. */
+.toolbar {
+  /* Ya no necesita ser sticky: vive fuera del contenedor con scroll, así que
+     siempre está arriba. Sigue posicionada y con z-index para quedar POR ENCIMA
+     del handle de arrastre (z-index 5), que es fixed. */
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  /* no encoger verticalmente dentro del .pane */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 2px;
+  min-height: 44px;
+  padding: 6px clamp(1rem, 4vw, 2rem);
+  background: var(--mat-sys-surface, #fff);
+  border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  scrollbar-width: none;
+  /* Firefox: ocultar barra (se desplaza con rueda/arrastre) */
+
+  /* WebKit: ocultar la barra por completo para que NO ocupe alto (si no,
+     recorta los iconos). */
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  &.arrastrando {
+    cursor: grabbing;
+    user-select: none;
+  }
+
+  /* Los ítems no se encogen: mantienen su tamaño y desbordan (menos el spacer). */
+  >*:not(.tb-spacer) {
+    flex: 0 0 auto;
+  }
+}
+
+.tb-group {
+  display: flex;
+  gap: 2px;
+}
+
+.tb-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 5px;
+  background: var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+}
+
+.tb-spacer {
+  flex: 1 1 auto;
+}
+
+.tb-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--mat-sys-on-surface, #1a1a1a);
+
+  .material-icons {
+    font-size: 20px;
+  }
+
+  &:hover {
+    background: var(--capa-hover);
+  }
+
+  &.activo {
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 16%, transparent);
+    color: var(--mat-sys-primary, #3b82f6);
+  }
+}
+
+.tb-insertar {
+  padding: 0 12px;
+  margin-right: 6px;
+  font-size: 0.85rem;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.16));
+}
+
+/* Indicador de guardado automático (sustituye al botón "Guardar"). */
+.estado-guardado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 108px;
+  padding: 0 8px;
+  height: 32px;
+  font-size: 0.82rem;
+  color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6));
+
+  .material-icons {
+    font-size: 18px;
+  }
+
+  &[data-estado='guardado'] {
+    color: var(--verde-ok);
+  }
+
+  &[data-estado='error'] {
+    color: var(--mat-sys-error, #b00020);
+  }
+}
+
+.girando {
+  animation: girar 1s linear infinite;
+}
+
+@keyframes girar {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Botón desplegable de niveles de título (H ▾). */
+.tb-h {
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tb-btn .material-icons.tb-caret {
+  font-size: 16px;
+  margin-left: -3px;
+  opacity: 0.7;
+}
+
+/* Botones de color (texto/resaltado): icono/"A" con barra del color actual
+   debajo. Caja de 20px (igual que un icono) para que ambos botones midan igual. */
+.color-a,
+.color-hl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  padding-bottom: 5px;
+}
+
+.color-a {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.color-hl .material-icons {
+  font-size: 20px;
+}
+
+.color-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 1px;
+
+  /* Igual que las muestras de la paleta: el color va en --c y se pinta ya
+     adaptado al tema (ver src/_tema-colores.scss). */
+  &.txt { background: tc.texto(); }
+  &.hl { background: tc.resaltado(); }
+}
+
+/* Los estilos de .menu-titulos / .menu-item / .enlace-pop / .enlace-input están
+   en styles.scss (GLOBAL), porque el CDK Overlay los renderiza fuera de este
+   componente (el CSS con encapsulación no les llegaría). */
+
+/* Portada (banner de imagen a lo ancho del panel). */
+.cover-wrap {
+  position: relative;
+  width: 100%;
+  height: clamp(280px, 44vh, 440px);
+  flex: 0 0 auto;
+  /* no encoger dentro del .pane (flex column); si no, ignora el alto */
+  overflow: hidden;
+  background: var(--mat-sys-surface-container, #ececec);
+
+  &:hover .cover-acciones {
+    opacity: 1;
+  }
+}
+
+.cover {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-acciones {
+  position: absolute;
+  right: clamp(1rem, 4vw, 2rem);
+  bottom: 12px;
+  display: flex;
+  gap: 8px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+/* Encabezado del documento: icono grande + acciones (agregar icono/portada). */
+.doc-encabezado {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.doc-icono {
+  all: unset;
+  cursor: pointer;
+  align-self: flex-start;
+  padding: 4px;
+  border-radius: 12px;
+  font-size: 4rem;
+  line-height: 1;
+
+  &:hover {
+    background: var(--capa-hover);
+  }
+}
+
+.doc-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+
+  &:hover {
+    opacity: 1;
+  }
+}
+
+/* .mini-btn (base) está en styles.scss (global) porque también se usa en el
+   popover de enlace, que va en un CDK Overlay fuera de este componente. */
+
+/* Sobre la imagen de portada los botones necesitan más contraste. */
+.cover-acciones .mini-btn {
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(2px);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.72);
+  }
+}
+
+/* Cuerpo del documento (título + editor) que hace scroll bajo la barra. */
+.doc-body {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem clamp(1.5rem, 6vw, 4rem) 4rem;
+
+  /* Con portada, el icono se solapa sobre el borde inferior del banner. */
+  &.con-cover {
+    padding-top: 0;
+
+    .doc-icono {
+      margin-top: -2.8rem;
+    }
+  }
+}
+
+.titulo {
+  display: block;
+  width: 100%;
+  margin-bottom: 0.5rem;
+  border: none;
+  outline: none;
+  font-size: 2rem;
+  font-weight: 700;
+  background: transparent;
+  color: inherit;
+
+  &::placeholder {
+    color: var(--texto-tenue);
+  }
+}
+
+.error {
+  color: var(--mat-sys-error, #b00020);
+}
+
+.placeholder {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  opacity: 0.5;
+}

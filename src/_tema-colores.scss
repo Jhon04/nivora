@@ -1,0 +1,28 @@
+@use 'sass:string';
+
+/* ---------- Colores del documento adaptados al tema ----------
+   El documento guarda el color que eligió el usuario, pensado para papel
+   blanco. Estas funciones lo traducen AL PINTAR: quien las use debe llevar el
+   color original en --c (lo ponen color-adaptable.ts y las paletas del
+   toolbar). En tema claro devuelven el color tal cual.
+
+   En oscuro se usa oklch(from …): conserva tono y saturación y solo mueve el
+   brillo, así el rojo sigue siendo rojo. El texto sube a un brillo mínimo
+   legible (incluido el negro, que si no desaparece) y el resaltado baja, para
+   que el texto claro se lea encima.
+
+   Son funciones de Sass y no una variable CSS compartida a propósito: un custom
+   property cuyo valor contiene var(--c) se resuelve en el elemento donde se
+   DECLARA. Si viviera en <html> y --c en el <span>, la sustitución fallaría y
+   el color quedaría vacío (comprobado). Así la expresión se escribe entera en
+   cada sitio de uso, que es donde --c sí existe. */
+
+@function texto() {
+  @return string.unquote('light-dark(var(--c), oklch(from var(--c) max(l, 0.78) c h))');
+}
+
+@function resaltado() {
+  @return string.unquote(
+    'light-dark(var(--c), oklch(from var(--c) min(l, 0.36) calc(c * 0.85) h))'
+  );
+}

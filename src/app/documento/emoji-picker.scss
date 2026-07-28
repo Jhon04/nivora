@@ -1,0 +1,131 @@
+:host {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 60;
+}
+
+/* Captura clics fuera para cerrar. */
+.ep-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+
+.ep-panel {
+  width: 320px;
+  max-width: 90vw;
+  background: var(--mat-sys-surface-container, #fff);
+  color: var(--mat-sys-on-surface, #1a1a1a);
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  box-shadow: 0 14px 40px var(--sombra-color);
+  overflow: hidden;
+}
+
+.ep-buscar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 8px 4px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: var(--capa-suave);
+
+  .material-icons {
+    font-size: 18px;
+    opacity: 0.55;
+  }
+
+  input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.88rem;
+
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+  }
+}
+
+.ep-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 6px;
+  border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.1));
+}
+
+.ep-vacio {
+  margin: 0;
+  padding: 24px 8px;
+  text-align: center;
+  font-size: 0.85rem;
+  opacity: 0.55;
+}
+
+.ep-tab {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  flex: 1 1 0;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  font-size: 1.05rem;
+  line-height: 1;
+
+  &:hover { background: var(--capa-hover); }
+
+  &.sel {
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 16%, transparent);
+  }
+}
+
+.ep-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 2px;
+  padding: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.ep-emoji {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  border-radius: 7px;
+  font-size: 1.4rem;
+  line-height: 1;
+
+  &:hover { background: var(--capa-hover); }
+}
+
+.ep-pie {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.1));
+}
+
+.ep-accion {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: 0.82rem;
+  color: var(--mat-sys-on-surface, #1a1a1a);
+
+  &:hover { background: var(--capa-hover); }
+}
