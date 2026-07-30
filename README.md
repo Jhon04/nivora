@@ -4,14 +4,19 @@ Un "Notion" local, rápido y sin servidor. **Angular 20 + Tauri (Rust) + SQLite.
 
 ```
         ┌──────────────────┐
-        │   Angular 20      │   UI, editor, signals, RxJS
+        │    Angular 20    │   UI, editor Tiptap, signals
         └────────┬─────────┘
                  │  IPC  invoke()
         ┌────────▼─────────┐
-        │   Rust (Tauri)   │   comandos, ficheros, OCR/IA (futuro)
-        ├──────────────────┤
-        │ SQLite (rusqlite)│   workspace.db
-        └──────────────────┘
+        │   Rust (Tauri)   │   comandos, git, cifrado
+        └────────┬─────────┘
+                 │
+     ┌───────────┴───────────┐
+     ▼                       ▼
+  notas/<id>.json        workspace.db
+  LA FUENTE DE VERDAD    índice DERIVADO: se
+  (un fichero por nota)  reconstruye a partir
+                         de los ficheros
 ```
 
 No hay REST, ni HTTP, ni Tomcat, ni CORS. El frontend llama a funciones Rust
@@ -44,25 +49,6 @@ npm run tauri:dev  # levanta ng serve + la ventana Tauri
 
 ```bash
 npm run tauri:build   # binario/instalador en src-tauri/target/release
-```
-
-## Estructura
-
-```
-nota-local/
-├─ src/                                # Angular
-│  └─ app/
-│     ├─ core/documentos.service.ts    # puente invoke() ➜ Rust
-│     ├─ models/documento.model.ts
-│     ├─ app.ts / app.html / app.scss  # demo: crear/listar/borrar documentos
-│     └─ app.config.ts
-├─ src-tauri/                          # Rust
-│  └─ src/
-│     ├─ lib.rs                        # setup, estado, registro de comandos
-│     ├─ commands.rs                   # #[tauri::command] (la "API")
-│     ├─ db.rs                         # conexión + esquema + CRUD SQLite
-│     └─ models.rs                     # Documento, DocumentoResumen
-└─ dist/nivora/browser/            # build de Angular (frontendDist de Tauri)
 ```
 
 ## Workspace (datos del usuario)
@@ -249,35 +235,30 @@ sus bloques cifrados no se abren. **No se borra sola** — puede tener notas que
 escribiste tú, así que quitarla es decisión tuya («Quitar bóveda» deja los
 ficheros en el disco). Si te vuelven a invitar, «Volver a comprobar» la reactiva.
 
-## Modelo de datos
+## Cómo es una nota por dentro
 
-El contenido del documento se guarda como **JSON de bloques** (no HTML, no
-Markdown) en la columna `document.contenido`:
+Cada `notas/<uuid>.json` es la nota entera: metadatos arriba y el contenido como
+**JSON de Tiptap** (no HTML, no Markdown), con la indentación puesta para que un
+diff de git se lea.
 
 ```json
 {
-  "id": "…",
-  "titulo": "Proyecto",
-  "contenido": [
-    { "type": "heading", "text": "Backend" },
-    { "type": "paragraph", "text": "Hoy terminé…" },
-    { "type": "image", "asset": "5f3ad3.png" }
-  ]
+  "id": "fabc5bfe-a3b2-41e2-b4d5-6d35a6d14d69",
+  "titulo": "TITULO DE LA NOTA",
+  "icono": "🍣",
+  "cover": "b2a3c7cd….png",
+  "tags": ["new"],
+  "bloqueada": false,
+  "contenido": {
+    "content": [
+      {
+        "type": "paragraph",
+        "content": [{ "type": "text", "text": "este es un párrafo" }]
+      }
+    ]
+  }
 }
 ```
 
-## Comandos Rust disponibles
-
-| Comando               | Angular                                          |
-|-----------------------|--------------------------------------------------|
-| `guardar_documento`   | `docs.guardar(documento)` — inserta o actualiza  |
-| `obtener_documento`   | `docs.obtener(id)`                               |
-| `listar_documentos`   | `docs.listar()`                                  |
-| `eliminar_documento`  | `docs.eliminar(id)`                              |
-
-## Siguientes pasos
-
-- **Editor de bloques** (BlockNote vía `@dytab/ngx-blocknote`, o Tiptap).
-- Gestión de `assets` (guardar ficheros + hash + thumbnails) desde Rust.
-- Búsqueda full-text (FTS5, ya incluido en el SQLite bundled).
-- Etiquetas (`tag` / `document_tag`) e IA/OCR local.
+Las imágenes y portadas guardan **el nombre del fichero en `assets/`**, no una
+ruta: por eso el workspace se puede copiar a otro equipo tal cual.
