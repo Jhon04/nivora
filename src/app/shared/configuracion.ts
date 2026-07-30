@@ -4,7 +4,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { open as abrirEnSistema } from '@tauri-apps/plugin-shell';
 
-import { EstadoSincro, RepoGitHub, SincroService } from '../core/sincro.service';
+import { EstadoClientId, EstadoSincro, RepoGitHub, SincroService } from '../core/sincro.service';
 import { TemaService } from '../core/tema.service';
 import { BovedasService } from '../core/bovedas.service';
 import { MINIMO_CLAVE, SecretosService } from '../core/secretos.service';
@@ -48,6 +48,10 @@ export class ConfiguracionDialog implements OnInit {
   /** Nombre propuesto al crear el repositorio (siempre se crea privado). */
   protected readonly nombreRepo = signal('mis-notas');
 
+  /** Qué OAuth App se está usando (ver «Avanzado» en la sección de cuenta). */
+  protected readonly clientId = signal<EstadoClientId | null>(null);
+  protected readonly clientIdEditado = signal('');
+
   protected readonly ocupado = signal(false);
   protected readonly aviso = signal<string | null>(null);
 
@@ -79,6 +83,7 @@ export class ConfiguracionDialog implements OnInit {
       this.refrescarEstado(),
       this.sincro.cargarSesion(),
       this.secretos.cargarEstado().catch(() => undefined),
+      this.refrescarClientId(),
     ]);
   }
 
@@ -164,6 +169,57 @@ export class ConfiguracionDialog implements OnInit {
   protected abrirGitHub(): void {
     const c = this.codigo();
     if (c) void abrirEnSistema(c.url).catch(() => undefined);
+  }
+
+  // -------------------------------------------------- OAuth App propia
+
+  private async refrescarClientId(): Promise<void> {
+    try {
+      const estado = await this.sincro.estadoClientId();
+      this.clientId.set(estado);
+      this.clientIdEditado.set(estado.propio ?? '');
+    } catch {
+      // Sin esto la sección de cuenta seguiría funcionando: es opcional.
+    }
+  }
+
+  /**
+   * Abre la página de registro en el navegador del sistema.
+   *
+   * En el webview de Tauri un enlace normal **navegaría dentro de la ventana** y
+   * reemplazaría la app, así que hay que interceptarlo.
+   */
+  protected abrirRegistro(evento: Event): void {
+    evento.preventDefault();
+    void abrirEnSistema('https://github.com/settings/applications/new').catch(() => undefined);
+  }
+
+  protected async guardarClientId(): Promise<void> {
+    await this.conClientId(this.clientIdEditado().trim());
+  }
+
+  /** Vuelve a la OAuth App que trae Nivora. */
+  protected async restaurarClientId(): Promise<void> {
+    await this.conClientId(null);
+  }
+
+  private async conClientId(id: string | null): Promise<void> {
+    this.ocupado.set(true);
+    this.aviso.set(null);
+    try {
+      const estado = await this.sincro.fijarClientId(id);
+      this.clientId.set(estado);
+      this.clientIdEditado.set(estado.propio ?? '');
+      // Rust ha cerrado la sesión: la pantalla vuelve al principio en vez de
+      // aparentar que sigue conectada con un token que ya no vale.
+      this.paso.set('dentro');
+      this.codigo.set(null);
+      await this.refrescarEstado();
+    } catch (e) {
+      this.aviso.set(String(e).replace(/^Error:\s*/, ''));
+    } finally {
+      this.ocupado.set(false);
+    }
   }
 
   // ------------------------------------------------------------ repositorio

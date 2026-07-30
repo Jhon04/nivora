@@ -15,6 +15,23 @@ export interface CodigoDispositivo {
   caducaEn: number;
 }
 
+/**
+ * Qué OAuth App se está usando para iniciar sesión.
+ *
+ * La app trae la suya y no hay nada que configurar; esto existe para quien
+ * prefiera **no depender de la OAuth App de nadie** y registre la propia.
+ */
+export interface EstadoClientId {
+  /** El que se usa ahora mismo. */
+  efectivo: string;
+  /** El que se guardó en este equipo, si se guardó alguno. */
+  propio: string | null;
+  /** `NIVORA_CLIENT_ID` manda sobre lo demás: el campo no serviría de nada. */
+  porEntorno: boolean;
+  /** Ninguno propio: se usa el que trae la app. */
+  porDefecto: boolean;
+}
+
 export interface RepoGitHub {
   nombre: string;
   completo: string;
@@ -92,6 +109,23 @@ export class SincroService {
   async cerrarSesion(): Promise<void> {
     await invoke<void>('github_cerrar_sesion');
     this.usuario.set(null);
+  }
+
+  /** Qué Client ID se está usando y de dónde sale. */
+  estadoClientId(): Promise<EstadoClientId> {
+    return invoke<EstadoClientId>('github_estado_client_id');
+  }
+
+  /**
+   * Guarda un Client ID propio, o vuelve al de la app con `null`.
+   *
+   * Cierra la sesión siempre —lo hace Rust—, porque el token guardado lo emitió
+   * la OAuth App anterior y con otra no vale.
+   */
+  async fijarClientId(id: string | null): Promise<EstadoClientId> {
+    const estado = await invoke<EstadoClientId>('github_fijar_client_id', { id });
+    this.usuario.set(null);
+    return estado;
   }
 
   listarRepos(): Promise<RepoGitHub[]> {

@@ -261,6 +261,55 @@ pub async fn github_cerrar_sesion(sesion: State<'_, Sesion>) -> Result<(), Strin
     github::borrar_token()
 }
 
+/// Qué Client ID se está usando y de dónde sale.
+///
+/// La app trae el suyo, así que no hay nada que configurar para empezar. Esto
+/// existe para quien **no quiera depender de la OAuth App de nadie** y prefiera
+/// registrar la propia.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EstadoClientId {
+    /// El que se está usando ahora mismo.
+    pub efectivo: String,
+    /// El que el usuario guardó en este equipo, si guardó alguno.
+    pub propio: Option<String>,
+    /// La variable `NIVORA_CLIENT_ID` manda sobre todo lo demás; si está
+    /// puesta, lo que se guarde en los ajustes no se usa y hay que decirlo en
+    /// vez de enseñar un campo que no hace nada.
+    pub por_entorno: bool,
+    /// Ninguno propio: se está usando el que trae la app.
+    pub por_defecto: bool,
+}
+
+/// Angular: `invoke('github_estado_client_id')`
+#[tauri::command]
+pub fn github_estado_client_id() -> EstadoClientId {
+    let propio = github::client_id_propio();
+    EstadoClientId {
+        efectivo: github::client_id_efectivo(),
+        por_entorno: github::client_id_por_entorno().is_some(),
+        por_defecto: propio.is_none(),
+        propio,
+    }
+}
+
+/// Guarda un Client ID propio, o vuelve al de la app con `id: null`.
+///
+/// **Cierra la sesión siempre**: el token guardado lo emitió la OAuth App
+/// anterior y con otra deja de valer. Sin esto, la app parecería con la sesión
+/// iniciada y fallaría en la primera llamada, que es peor que pedir entrar.
+/// Angular: `invoke('github_fijar_client_id', { id })`
+#[tauri::command]
+pub async fn github_fijar_client_id(
+    sesion: State<'_, Sesion>,
+    id: Option<String>,
+) -> Result<EstadoClientId, String> {
+    github::fijar_client_id(id.as_deref())?;
+    sesion.olvidar();
+    github::borrar_token()?;
+    Ok(github_estado_client_id())
+}
+
 /// Repositorios del usuario, para elegir cuál conectar en el segundo equipo.
 /// Angular: `invoke('github_listar_repos')`
 #[tauri::command]

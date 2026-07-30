@@ -432,3 +432,46 @@ code {
   transform: scale(0.85);
   transform-origin: left center;
 }
+
+/* --- «Avanzado: usar mi propia OAuth App» ---
+   Va plegado a propósito: para usar la app no hay nada que configurar, y un
+   campo de «Client ID» a la vista haría pensar lo contrario. */
+.cfg-avanzado {
+  margin-top: 22px;
+  padding-top: 16px;
+  border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+
+  > summary {
+    cursor: pointer;
+    padding: 4px 2px;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6));
+    list-style: revert; /* el triángulo lo pinta el navegador */
+
+    &:hover { color: var(--mat-sys-on-surface, inherit); }
+    &:focus-visible { outline: 2px solid var(--mat-sys-primary, #3b82f6); outline-offset: 2px; }
+  }
+
+  > *:not(summary) { margin-top: 12px; }
+}
+
+/* Los pasos del registro. Numerados porque el orden importa: si no se marca
+   «Enable Device Flow» al crearla, el inicio de sesión no funciona. */
+.cfg-pasos {
+  margin: 0 0 14px;
+  padding-left: 20px;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  max-width: 52ch;
+
+  li + li { margin-top: 3px; }
+
+  a {
+    color: var(--mat-sys-primary, #3b82f6);
+    /* En el webview de Tauri un enlace normal reemplazaría la app; lo abre el
+       navegador del sistema (ver `abrirRegistro`). */
+    cursor: pointer;
+  }
+}

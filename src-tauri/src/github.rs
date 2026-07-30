@@ -19,11 +19,14 @@ use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
-/// Client ID de la OAuth App (dato **público**, no es un secreto).
+/// Client ID de la OAuth App que trae la app (dato **público**, no un secreto).
+///
+/// Va dentro del binario a propósito: identifica a la *aplicación*, no a nadie.
+/// El flujo de dispositivo no usa `client_secret`, así que publicarlo no permite
+/// suplantar a nadie, y cada usuario aprueba con su cuenta y su token.
 ///
 /// Se registra una vez en GitHub → Settings → Developer settings → OAuth Apps →
-/// New OAuth App, y dentro hay que marcar **Enable Device Flow**. En desarrollo
-/// se puede sobrescribir con la variable de entorno `NIVORA_CLIENT_ID`.
+/// New OAuth App, marcando **Enable Device Flow**.
 const CLIENT_ID: &str = "Ov23liH7C3x7BFeEoL5G";
 
 /// Valor del marcador previo a configurar la OAuth App.
@@ -36,8 +39,110 @@ const AMBITO: &str = "repo";
 const SERVICIO_LLAVERO: &str = "nivora";
 const CUENTA_LLAVERO: &str = "github";
 
+/// Ajustes de **este equipo**. Va en el directorio de datos y nunca dentro de
+/// una bóveda: son preferencias de esta máquina y no deben viajar por git.
+const FICHERO_AJUSTES: &str = "ajustes.json";
+
+/// Preferencias locales. `default` en todos los campos para que un fichero de
+/// una versión anterior —o a medio escribir— se lea igual en vez de tumbar el
+/// arranque.
+#[derive(Debug, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+struct Ajustes {
+    /// Client ID de la OAuth App propia, si el usuario registró la suya.
+    client_id: Option<String>,
+}
+
+/// De dónde sale el Client ID que se va a usar, con su orden de precedencia.
+///
+/// Separado en función pura para poder probar el orden sin tocar ni el entorno
+/// ni el disco.
+fn elegir_client_id(entorno: Option<&str>, propio: Option<&str>) -> String {
+    let util = |s: &&str| !s.trim().is_empty();
+    entorno
+        .filter(util)
+        .or(propio.filter(util))
+        .unwrap_or(CLIENT_ID)
+        .trim()
+        .to_string()
+}
+
 fn client_id() -> Result<String, String> {
-    validar(&std::env::var("NIVORA_CLIENT_ID").unwrap_or_else(|_| CLIENT_ID.to_string()))
+    let entorno = std::env::var("NIVORA_CLIENT_ID").ok();
+    let propio = client_id_propio();
+    validar(&elegir_client_id(entorno.as_deref(), propio.as_deref()))
+}
+
+/// Client ID propio guardado en este equipo, si lo hay.
+pub fn client_id_propio() -> Option<String> {
+    dirs_datos().ok().and_then(|d| leer_ajustes(&d).client_id)
+}
+
+/// ¿Manda la variable de entorno? Si es que sí, lo que se guarde en los ajustes
+/// no se usará, y la interfaz tiene que poder decirlo en vez de mentir.
+pub fn client_id_por_entorno() -> Option<String> {
+    std::env::var("NIVORA_CLIENT_ID")
+        .ok()
+        .filter(|s| !s.trim().is_empty())
+}
+
+/// El que se está usando de verdad ahora mismo.
+pub fn client_id_efectivo() -> String {
+    elegir_client_id(
+        client_id_por_entorno().as_deref(),
+        client_id_propio().as_deref(),
+    )
+}
+
+/// Guarda el Client ID propio, o lo quita con `None` para volver al de la app.
+///
+/// **No cierra la sesión**: eso lo hace el comando, porque el token guardado
+/// pertenece a la OAuth App anterior y con otra deja de valer.
+pub fn fijar_client_id(id: Option<&str>) -> Result<(), String> {
+    let base = dirs_datos()?;
+    let mut ajustes = leer_ajustes(&base);
+    ajustes.client_id = match id {
+        Some(v) => Some(normalizar_client_id(v)?),
+        None => None,
+    };
+    escribir_ajustes(&base, &ajustes)
+}
+
+/// Limpia y comprueba lo que escribe el usuario.
+///
+/// No se valida el formato exacto a propósito: GitHub ha cambiado ya el de los
+/// Client ID (`Ov23li…` es el nuevo, antes eran 20 hex) y una regla estricta
+/// rechazaría los válidos de mañana. Se cazan los errores de pegado, que es lo
+/// que de verdad pasa.
+fn normalizar_client_id(id: &str) -> Result<String, String> {
+    let limpio = id.trim();
+    if limpio.is_empty() {
+        return Err("El Client ID está vacío.".into());
+    }
+    if limpio.chars().any(char::is_whitespace) {
+        return Err("El Client ID no lleva espacios: parece que se ha colado algo al pegar.".into());
+    }
+    if limpio.len() < 10 || !limpio.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return Err(
+            "Eso no parece un Client ID. Es una cadena corta de letras y números, del estilo \
+             de «Ov23li…», que sale en la página de tu OAuth App."
+                .into(),
+        );
+    }
+    Ok(limpio.to_string())
+}
+
+fn leer_ajustes(base: &std::path::Path) -> Ajustes {
+    std::fs::read_to_string(base.join(FICHERO_AJUSTES))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_default()
+}
+
+fn escribir_ajustes(base: &std::path::Path, ajustes: &Ajustes) -> Result<(), String> {
+    std::fs::create_dir_all(base).map_err(|e| e.to_string())?;
+    let texto = serde_json::to_string_pretty(ajustes).map_err(|e| e.to_string())?;
+    std::fs::write(base.join(FICHERO_AJUSTES), texto).map_err(|e| e.to_string())
 }
 
 /// Separado de `client_id()` para poder probarlo sin tocar el entorno.
@@ -518,6 +623,82 @@ pub async fn listar_repos(token: &str) -> Result<Vec<RepoGitHub>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    struct Temporal(std::path::PathBuf);
+
+    impl Temporal {
+        fn nueva() -> Self {
+            let d = std::env::temp_dir().join(format!("ajustes-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&d).unwrap();
+            Self(d)
+        }
+    }
+
+    impl Drop for Temporal {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn el_orden_de_precedencia_del_client_id() {
+        // El entorno manda sobre todo (desarrollo), luego el que el usuario haya
+        // guardado en su equipo, y si no hay nada, el que trae la app.
+        assert_eq!(elegir_client_id(Some("delEntorno"), Some("delUsuario")), "delEntorno");
+        assert_eq!(elegir_client_id(None, Some("delUsuario")), "delUsuario");
+        assert_eq!(elegir_client_id(None, None), CLIENT_ID);
+    }
+
+    #[test]
+    fn un_valor_en_blanco_no_cuenta_como_configurado() {
+        // Una variable exportada vacía o un campo que quedó con espacios no
+        // deben dejar la app sin Client ID: se cae al siguiente de la lista.
+        assert_eq!(elegir_client_id(Some(""), Some("delUsuario")), "delUsuario");
+        assert_eq!(elegir_client_id(Some("   "), None), CLIENT_ID);
+        assert_eq!(elegir_client_id(None, Some("  ")), CLIENT_ID);
+    }
+
+    #[test]
+    fn el_client_id_propio_se_guarda_y_se_relee() {
+        let t = Temporal::nueva();
+        assert!(leer_ajustes(&t.0).client_id.is_none(), "de fábrica no hay ninguno");
+
+        let ajustes = Ajustes { client_id: Some("Ov23liOTRACUENTA".into()) };
+        escribir_ajustes(&t.0, &ajustes).unwrap();
+
+        assert_eq!(leer_ajustes(&t.0).client_id.as_deref(), Some("Ov23liOTRACUENTA"));
+    }
+
+    #[test]
+    fn un_ajustes_json_roto_no_tumba_el_arranque() {
+        let t = Temporal::nueva();
+        std::fs::write(t.0.join(FICHERO_AJUSTES), "{ esto no es json").unwrap();
+
+        // Se vuelve a los valores por defecto en vez de propagar el error: un
+        // fichero de preferencias corrupto no puede dejar la app sin abrir.
+        assert!(leer_ajustes(&t.0).client_id.is_none());
+    }
+
+    #[test]
+    fn el_fichero_de_ajustes_queda_fuera_de_las_bovedas() {
+        // Son preferencias de ESTE equipo. Dentro de una bóveda viajarían por
+        // git y le impondrían al otro equipo el Client ID de este.
+        let ruta = dirs_datos().unwrap().join(FICHERO_AJUSTES);
+        assert!(!ruta.to_string_lossy().contains("Workspace"));
+        assert!(!ruta.to_string_lossy().contains("Bovedas"));
+    }
+
+    #[test]
+    fn se_cazan_los_errores_de_pegado_al_escribir_el_client_id() {
+        assert!(normalizar_client_id("  Ov23liH7C3x7BFeEoL5G  ").is_ok(), "se recortan espacios");
+        assert_eq!(normalizar_client_id(" Ov23liH7C3x7BFeEoL5G ").unwrap(), "Ov23liH7C3x7BFeEoL5G");
+
+        assert!(normalizar_client_id("").is_err());
+        assert!(normalizar_client_id("Ov23li H7C3").is_err(), "espacio en medio");
+        assert!(normalizar_client_id("corto").is_err());
+        // Pegar la URL entera de la página en vez del identificador.
+        assert!(normalizar_client_id("https://github.com/settings/apps").is_err());
+    }
 
     #[test]
     fn sin_client_id_el_error_explica_que_hacer() {

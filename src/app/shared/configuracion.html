@@ -182,6 +182,69 @@
             </p>
           }
         }
+
+        <!-- Plegado a propósito: no hay nada que configurar para usar la app, y
+             enseñar un campo de «Client ID» de entrada haría pensar lo
+             contrario. Está para quien no quiera depender de una app ajena. -->
+        <details class="cfg-avanzado">
+          <summary>Avanzado: usar mi propia OAuth App</summary>
+
+          <p class="cfg-ayuda">
+            Nivora trae registrada su aplicación de GitHub, así que no hace falta tocar nada.
+            Si prefieres <strong>no depender de ella</strong>, registra la tuya y pega aquí su
+            Client ID. Es un dato público: identifica a la aplicación, no a ti.
+          </p>
+
+          @if (clientId(); as cid) {
+            @if (cid.porEntorno) {
+              <p class="cfg-aviso">
+                <span class="material-icons">terminal</span>
+                Lo manda la variable de entorno <code>NIVORA_CLIENT_ID</code>
+                (<code>{{ cid.efectivo }}</code>), que tiene prioridad sobre lo que guardes aquí.
+              </p>
+            } @else {
+              <ol class="cfg-pasos">
+                <li>
+                  Abre
+                  <a href="https://github.com/settings/applications/new" (click)="abrirRegistro($event)">
+                    github.com/settings/applications/new</a>.
+                </li>
+                <li>Ponle el nombre que quieras y una URL cualquiera tuya como <em>Homepage</em>.</li>
+                <li><strong>Marca «Enable Device Flow»</strong>, que es lo único imprescindible.</li>
+                <li>Copia el <em>Client ID</em> que sale al crearla y pégalo aquí.</li>
+              </ol>
+
+              <label class="cfg-campo">
+                Client ID
+                <input
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  [placeholder]="cid.porDefecto ? 'Usando el de Nivora: ' + cid.efectivo : ''"
+                  [ngModel]="clientIdEditado()"
+                  (ngModelChange)="clientIdEditado.set($event)" />
+                <small>
+                  Al cambiarlo <strong>se cierra la sesión</strong>: el permiso que diste era para
+                  la aplicación anterior.
+                </small>
+              </label>
+
+              <div class="cfg-acciones">
+                <button
+                  mat-flat-button
+                  [disabled]="ocupado() || !clientIdEditado().trim()"
+                  (click)="guardarClientId()">
+                  Usar este
+                </button>
+                @if (!cid.porDefecto) {
+                  <button mat-stroked-button [disabled]="ocupado()" (click)="restaurarClientId()">
+                    Volver al de Nivora
+                  </button>
+                }
+              </div>
+            }
+          }
+        </details>
       }
 
       @case ('secretos') {

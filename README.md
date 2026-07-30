@@ -134,12 +134,26 @@ Si la misma nota se editó en dos equipos a la vez, gana la más reciente y la o
 versión se guarda al lado como `<id>.conflicto-<fecha>.json`. Nunca se descarta
 nada.
 
-> La OAuth App ya está registrada y su Client ID va en el binario: **el usuario no
-> tiene que configurar nada**, solo iniciar sesión con su propia cuenta. Para
-> compilar contra otra OAuth App, exporta `NIVORA_CLIENT_ID`.
->
 > Ojo: esto sube tus notas a GitHub. El repositorio es privado, pero GitHub puede
 > leerlo. La misma pantalla sirve para un Gitea auto-hospedado cambiando la URL.
+
+#### La OAuth App: no hay nada que configurar
+
+Nivora trae su Client ID dentro del binario, así que **basta con iniciar sesión
+con tu cuenta**. Ese identificador es público a propósito: nombra a la
+*aplicación*, no a nadie. El flujo de dispositivo no usa `client_secret`, cada
+persona aprueba con su cuenta, su token va a su llavero y sus notas a su
+repositorio. Quien registró la app no ve nada de eso.
+
+Si aun así prefieres **no depender de una OAuth App ajena**, en ⚙ Ajustes →
+*Cuenta* → *Avanzado* puedes registrar la tuya y pegar su Client ID. Lo único
+imprescindible al crearla es marcar **Enable Device Flow**. Al cambiarlo se
+cierra la sesión: el permiso que diste era para la aplicación anterior.
+
+Se guarda en `ajustes.json`, en el directorio de datos y **fuera de las
+bóvedas** — es de este equipo y no debe viajar por git. El orden de precedencia
+es: variable de entorno `NIVORA_CLIENT_ID` → lo guardado aquí → el que trae la
+app.
 
 #### A mano, sin la app
 

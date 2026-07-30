@@ -78,6 +78,8 @@ pub fn run() {
             commands::github_iniciar_sesion,
             commands::github_esperar_aprobacion,
             commands::github_cerrar_sesion,
+            commands::github_estado_client_id,
+            commands::github_fijar_client_id,
             commands::github_listar_repos,
             commands::crear_repo,
             commands::conectar_repo,

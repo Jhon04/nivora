@@ -7,6 +7,7 @@ import { ConfiguracionDialog } from './configuracion';
 import { Boveda, BovedasService } from '../core/bovedas.service';
 import { SecretosService } from '../core/secretos.service';
 import {
+  EstadoClientId,
   EstadoSincro,
   RepoGitHub,
   ResultadoSincro,
@@ -49,11 +50,22 @@ const CON_REPO: EstadoSincro = {
  * tests. Aquí solo se comprueba la máquina de estados de la pantalla: es donde
  * está la lógica y donde un fallo dejaría al usuario sin saber qué botón pulsar.
  */
+const CLIENT_ID_APP = 'Ov23liH7C3x7BFeEoL5G';
+
+const POR_DEFECTO: EstadoClientId = {
+  efectivo: CLIENT_ID_APP,
+  propio: null,
+  porEntorno: false,
+  porDefecto: true,
+};
+
 function montar(opciones: {
   usuario?: UsuarioGitHub | null;
   estado?: EstadoSincro;
   conectar?: () => Promise<ResultadoSincro>;
   rotar?: (actual: string, nueva: string) => Promise<number>;
+  clientId?: EstadoClientId;
+  fijarClientId?: (id: string | null) => Promise<EstadoClientId>;
 }) {
   const cerrado = { valor: undefined as unknown };
   const mock: Partial<SincroService> = {
@@ -72,6 +84,15 @@ function montar(opciones: {
     sincronizarSiProcede: () => Promise.resolve(null),
     desconectar: () => Promise.resolve(),
     cerrarSesion: () => Promise.resolve(),
+    estadoClientId: () => Promise.resolve(opciones.clientId ?? POR_DEFECTO),
+    fijarClientId:
+      opciones.fijarClientId ??
+      ((id: string | null) =>
+        Promise.resolve(
+          id
+            ? { efectivo: id, propio: id, porEntorno: false, porDefecto: false }
+            : POR_DEFECTO,
+        )),
   };
 
   const bovedasMock: Partial<BovedasService> = {
@@ -380,5 +401,135 @@ describe('ConfiguracionDialog · contraseña maestra', () => {
 
     expect(interno(fixture).aviso()).toContain('incorrecta');
     expect(interno(fixture).rotando()).toBeFalse();
+  });
+});
+
+/**
+ * OAuth App propia.
+ *
+ * La app trae la suya y no hay nada que configurar: esto existe solo para quien
+ * prefiera no depender de ella. De ahí que vaya plegado y que cambiarlo cierre
+ * la sesión.
+ */
+describe('ConfiguracionDialog · Client ID propio', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  async function abierto(opciones: Parameters<typeof montar>[0] = {}) {
+    const { fixture } = montar({ usuario: ANA, estado: CON_REPO, ...opciones });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    const el = fixture.nativeElement as HTMLElement;
+    // `<details>` nace cerrado; el contenido existe igual en el DOM.
+    (el.querySelector('.cfg-avanzado') as HTMLDetailsElement).open = true;
+    fixture.detectChanges();
+    return { fixture, el };
+  }
+
+  it('viene plegado: para usar la app no hay que configurar nada', async () => {
+    const { fixture } = montar({ usuario: ANA, estado: CON_REPO });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const det = (fixture.nativeElement as HTMLElement).querySelector(
+      '.cfg-avanzado',
+    ) as HTMLDetailsElement;
+    expect(det.open).withContext('un campo de Client ID a la vista confundiría').toBeFalse();
+    expect(det.querySelector('summary')?.textContent).toContain('mi propia OAuth App');
+  });
+
+  it('enseña el de la app como marcador cuando no hay uno propio', async () => {
+    const { el } = await abierto();
+    const campo = el.querySelector('.cfg-avanzado input') as HTMLInputElement;
+
+    expect(campo.value).toBe('');
+    expect(campo.placeholder).toContain(CLIENT_ID_APP);
+  });
+
+  it('recuerda el paso imprescindible del registro', async () => {
+    const { el } = await abierto();
+    const pasos = el.querySelector('.cfg-pasos')?.textContent ?? '';
+
+    // Sin «Enable Device Flow» la OAuth App se crea pero el inicio de sesión
+    // falla, y el error de GitHub no dice por qué.
+    expect(pasos).toContain('Enable Device Flow');
+  });
+
+  it('guardar uno propio lo aplica y cierra la sesión', async () => {
+    let pedido: string | null | undefined;
+    const { fixture, el } = await abierto({
+      fijarClientId: (id) => {
+        pedido = id;
+        return Promise.resolve({
+          efectivo: 'Ov23liOTRACUENTA',
+          propio: 'Ov23liOTRACUENTA',
+          porEntorno: false,
+          porDefecto: false,
+        });
+      },
+    });
+
+    interno(fixture).clientIdEditado.set('  Ov23liOTRACUENTA  ');
+    await interno(fixture).guardarClientId();
+    fixture.detectChanges();
+
+    expect(pedido).toBe('Ov23liOTRACUENTA', 'se recortan los espacios del pegado');
+    expect(interno(fixture).clientId().propio).toBe('Ov23liOTRACUENTA');
+    // El token era de la OAuth App anterior: la pantalla vuelve al principio en
+    // vez de aparentar una sesión que ya no vale.
+    expect(interno(fixture).paso()).toBe('dentro');
+    expect(el.querySelector('.cfg-avanzado')).withContext('la sección sigue ahí').toBeTruthy();
+  });
+
+  it('se puede volver al de la app', async () => {
+    let pedido: string | null | undefined = 'sin llamar';
+    const { fixture } = await abierto({
+      clientId: {
+        efectivo: 'Ov23liOTRACUENTA',
+        propio: 'Ov23liOTRACUENTA',
+        porEntorno: false,
+        porDefecto: false,
+      },
+      fijarClientId: (id) => {
+        pedido = id;
+        return Promise.resolve(POR_DEFECTO);
+      },
+    });
+
+    await interno(fixture).restaurarClientId();
+    fixture.detectChanges();
+
+    expect(pedido).toBeNull();
+    expect(interno(fixture).clientId().porDefecto).toBeTrue();
+  });
+
+  it('un fallo al guardarlo se cuenta, no se traga', async () => {
+    const { fixture } = await abierto({
+      fijarClientId: () => Promise.reject(new Error('Eso no parece un Client ID.')),
+    });
+
+    interno(fixture).clientIdEditado.set('pegado-mal');
+    await interno(fixture).guardarClientId();
+    fixture.detectChanges();
+
+    expect(interno(fixture).aviso()).toBe('Eso no parece un Client ID.');
+    expect(interno(fixture).ocupado()).toBeFalse();
+  });
+
+  it('con la variable de entorno puesta lo dice, en vez de enseñar un campo inútil', async () => {
+    const { el } = await abierto({
+      clientId: {
+        efectivo: 'Ov23liDESARROLLO',
+        propio: null,
+        porEntorno: true,
+        porDefecto: true,
+      },
+    });
+
+    expect(el.querySelector('.cfg-avanzado input')).toBeNull();
+    expect(el.querySelector('.cfg-avanzado .cfg-aviso')?.textContent).toContain(
+      'NIVORA_CLIENT_ID',
+    );
   });
 });
