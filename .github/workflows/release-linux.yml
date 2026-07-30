@@ -6,6 +6,9 @@ on:
       - 'v*'
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-tauri:
     runs-on: ubuntu-22.04
@@ -36,24 +39,27 @@ jobs:
       - name: Build Tauri app
         run: npm run tauri:build
 
-      - name: List generated artifacts
+      - name: Locate Debian package
+        id: package
         run: |
-          find src-tauri/target/release -maxdepth 2 -type f | sed 's#^#/#' | sort
-
-      - name: Create release assets
-        run: |
-          mkdir -p release-assets
-          deb_file=$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' | head -n 1)
-          if [ -n "$deb_file" ]; then
-            cp "$deb_file" release-assets/nivora.deb
+          set -e
+          deb_file=$(find src-tauri/target/release/bundle/deb -type f -name '*.deb' | head -n 1)
+          if [ -z "$deb_file" ]; then
+            echo "No .deb package was generated."
+            find src-tauri/target/release -type f | sort | head -200
+            exit 1
           fi
-          ls -la release-assets || true
+          mkdir -p release-assets
+          cp "$deb_file" "release-assets/nivora_${GITHUB_REF_NAME#v}.deb"
+          echo "deb_path=release-assets/nivora_${GITHUB_REF_NAME#v}.deb" >> "$GITHUB_OUTPUT"
+          ls -la release-assets
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/*
+          files: release-assets/*.deb
           draft: false
           prerelease: false
+          fail_on_unmatched_files: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
