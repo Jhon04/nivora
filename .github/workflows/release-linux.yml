@@ -1,4 +1,4 @@
-name: Build and release Linux app
+name: Build and release desktop app
 
 on:
   push:
@@ -11,7 +11,18 @@ permissions:
 
 jobs:
   build-tauri:
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            bundle: deb
+            artifact_name: linux-deb
+          - os: windows-2022
+            bundle: nsis
+            artifact_name: windows-nsis
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
@@ -29,6 +40,7 @@ jobs:
           toolchain: stable
 
       - name: Install Linux dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config
@@ -37,27 +49,37 @@ jobs:
         run: npm ci
 
       - name: Build Tauri app
-        run: npm run tauri:build
+        run: npm run tauri:build -- --bundles ${{ matrix.bundle }}
 
-      - name: Locate Debian package
+      - name: Locate build artifact
         id: package
+        shell: bash
         run: |
           set -e
-          deb_file=$(find src-tauri/target/release/bundle/deb -type f -name '*.deb' | head -n 1)
-          if [ -z "$deb_file" ]; then
-            echo "No .deb package was generated."
-            find src-tauri/target/release -type f | sort | head -200
-            exit 1
-          fi
           mkdir -p release-assets
-          cp "$deb_file" "release-assets/nivora_${GITHUB_REF_NAME#v}.deb"
-          echo "deb_path=release-assets/nivora_${GITHUB_REF_NAME#v}.deb" >> "$GITHUB_OUTPUT"
+          if [ "${{ matrix.bundle }}" = "deb" ]; then
+            artifact=$(find src-tauri/target/release/bundle/deb -type f -name '*.deb' | head -n 1)
+            if [ -z "$artifact" ]; then
+              echo "No .deb package was generated."
+              find src-tauri/target/release -type f | sort | head -200
+              exit 1
+            fi
+            cp "$artifact" "release-assets/nivora_${GITHUB_REF_NAME#v}.deb"
+          else
+            artifact=$(find src-tauri/target/release/bundle/nsis -type f \( -name '*.exe' -o -name '*.msi' \) | head -n 1)
+            if [ -z "$artifact" ]; then
+              echo "No Windows installer was generated."
+              find src-tauri/target/release -type f | sort | head -200
+              exit 1
+            fi
+            cp "$artifact" "release-assets/nivora_${GITHUB_REF_NAME#v}.exe"
+          fi
           ls -la release-assets
 
-      - name: Publish GitHub Release
+      - name: Upload release asset
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/*.deb
+          files: release-assets/*
           draft: false
           prerelease: false
           fail_on_unmatched_files: true
