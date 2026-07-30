@@ -323,7 +323,7 @@ mod tests {
 
     impl Temporal {
         fn nueva() -> Self {
-            let dir = std::env::temp_dir().join(format!("nota-local-{}", Uuid::new_v4()));
+            let dir = std::env::temp_dir().join(format!("nivora-{}", Uuid::new_v4()));
             fs::create_dir_all(&dir).unwrap();
             Self(dir)
         }

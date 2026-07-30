@@ -7,12 +7,12 @@ export interface Boveda {
   nombre: string;
   ruta: string;
   /**
-   * El cuaderno es de otra persona: se ve pero no se toca.
+   * La bóveda **entera** se ve pero no se toca.
    *
-   * Lo decide la **propiedad del repositorio**, no el permiso de GitHub: en un
-   * repositorio privado personal todo colaborador puede empujar, así que mirar
-   * el permiso dejaría editable un cuaderno ajeno. Tu propio cuaderno en otro
-   * equipo sí se edita.
+   * Lo decide el permiso real de GitHub, así que solo pasa con un repositorio de
+   * **organización** donde tienes rol *Read*: en uno personal todo colaborador
+   * puede empujar. Compartir una bóveda es abrirla a la edición; lo que protege
+   * hojas concretas es el candado por nota (`bloqueada`).
    *
    * Ocultar los controles aquí es solo cortesía: **el veto lo aplica Rust** en
    * cada comando de escritura.

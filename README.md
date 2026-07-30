@@ -1,4 +1,4 @@
-# Nota Local
+# Nivora
 
 Un "Notion" local, rápido y sin servidor. **Angular 20 + Tauri (Rust) + SQLite.**
 
@@ -62,7 +62,7 @@ nota-local/
 │     ├─ commands.rs                   # #[tauri::command] (la "API")
 │     ├─ db.rs                         # conexión + esquema + CRUD SQLite
 │     └─ models.rs                     # Documento, DocumentoResumen
-└─ dist/nota-local/browser/            # build de Angular (frontendDist de Tauri)
+└─ dist/nivora/browser/            # build de Angular (frontendDist de Tauri)
 ```
 
 ## Workspace (datos del usuario)
@@ -79,7 +79,13 @@ Se crea automáticamente al arrancar, dentro del `app_data_dir` del sistema:
 └─ export/
 ```
 
-En Linux: `~/.local/share/net.adcomp.notalocal/Workspace/`.
+En Linux: `~/.local/share/pe.pluton.nivora/Workspace/`.
+
+> De ese identificador cuelga toda la carpeta de datos, así que **cambiarlo en una
+> versión ya en uso haría "desaparecer" las notas** (quedarían en la ruta vieja).
+> Lo mismo con el testigo de los bloques cifrados (`nivora::secretos`), que deja
+> ilegible lo ya cifrado, y con la entrada del llavero, que obliga a iniciar
+> sesión otra vez. Si algún día hay que renombrar de nuevo, hace falta migración.
 
 ### Bóvedas
 
@@ -95,27 +101,11 @@ sincroniza.
 Para conectar una bóveda compartida: créala vacía desde el selector y luego
 ⚙ Ajustes → *Conectar con uno existente*.
 
-#### Compartir: siempre en solo lectura
+#### Compartir: cuaderno de equipo con hojas protegidas
 
-Lo decide **de quién es el repositorio**:
-
-| Bóveda | Qué puedes hacer |
-|---|---|
-| Tu cuaderno en **otro equipo tuyo** | Editar con normalidad |
-| Un cuaderno que **te comparten** | Solo leer |
-
-Basta con añadir a la otra persona como colaborador del repo (privado) en
-github.com. Aunque GitHub le dé permiso de escritura —en repos personales se lo
-da a todos—, la app abre esa bóveda **en solo lectura**: sin crear, editar ni
-borrar, y sin subir nunca nada. Se sincroniza como un espejo.
-
-Ese veto lo aplica el backend en Rust, en cada comando de escritura; ocultar los
-botones es solo cortesía de la interfaz.
-
-#### Cuaderno de equipo con hojas protegidas
-
-Si añades a alguien como colaborador, puede crear, editar y borrar notas en esa
-bóveda. Las que tú marques con el **candado** solo podrá leerlas.
+Compartir una bóveda es **abrirla a la edición**, no enseñarla. Añades a la otra
+persona como colaborador del repo (privado) en github.com y ya puede crear,
+editar y borrar notas. Las que tú marques con el **candado** solo podrá leerlas.
 
 | | Notas normales | Notas con candado |
 |---|---|---|
@@ -128,6 +118,18 @@ nada del candado. Lo que sí ocurre es que **tu copia lo revierte**: al
 sincronizar, tu app detecta que una nota bloqueada llegó cambiada, restaura la
 tuya y guarda la ajena al lado como `<id>.conflicto-<fecha>.json`. Sirve para
 trabajar en equipo de buena fe, no para defenderte de alguien.
+
+El veto lo aplica el backend en Rust, en cada comando de escritura; ocultar los
+botones es solo cortesía de la interfaz.
+
+##### Compartir sin dar escritura
+
+Para eso no basta con GitHub: en un repositorio **personal** no existen los
+colaboradores de solo lectura, todos pueden empujar. Hay que poner el repo en una
+**organización** (gratis) y añadir a la persona con rol *Read*. Entonces la app
+abre la bóveda entera en solo lectura —sin crear, editar ni borrar, y sin subir
+nunca nada— y la sincroniza como un espejo. Si te quitan la escritura después de
+haberla conectado, se degrada sola en la siguiente sincronización.
 
 ### Sincronizar entre equipos
 
@@ -148,7 +150,7 @@ nada.
 
 > La OAuth App ya está registrada y su Client ID va en el binario: **el usuario no
 > tiene que configurar nada**, solo iniciar sesión con su propia cuenta. Para
-> compilar contra otra OAuth App, exporta `NOTA_LOCAL_CLIENT_ID`.
+> compilar contra otra OAuth App, exporta `NIVORA_CLIENT_ID`.
 >
 > Ojo: esto sube tus notas a GitHub. El repositorio es privado, pero GitHub puede
 > leerlo. La misma pantalla sirve para un Gitea auto-hospedado cambiando la URL.
@@ -160,7 +162,7 @@ el workspace también se sincroniza con **git, Syncthing o un pendrive** sin
 pasar por la interfaz:
 
 ```bash
-cd ~/.local/share/net.adcomp.notalocal/Workspace
+cd ~/.local/share/pe.pluton.nivora/Workspace
 git init && git add -A && git commit -m "notas"
 git remote add origin <tu-repo> && git push -u origin main
 ```
@@ -174,6 +176,20 @@ parte, y un conflicto te obliga a elegir un lado perdiendo **todas** las notas d
 otro. Con un fichero por nota el conflicto es de una nota, y borrar una nota es
 borrar un fichero (el borrado viaja solo, sin tabla de lápidas).
 
+## Tablas
+
+Con `/` → **Tabla** se inserta una de 3 × 3 con fila de cabecera. Con el cursor
+dentro aparece abajo una barra con dos desplegables, **Fila** y **Columna**
+(insertar a cada lado y borrar), más *Cabecera*, combinar celdas y borrar la
+tabla.
+
+La cabecera se pone y se quita **en la fila donde está el cursor**, así que
+sirve para cualquier fila y no solo para la primera.
+
+Las columnas se ajustan **arrastrando la línea que las separa**; el ancho se
+guarda con la nota. Una tabla más ancha que la página se desplaza dentro de su
+propia caja, sin ensanchar el resto.
+
 ## Bloques cifrados
 
 Con `/` → **Bloque cifrado** puedes guardar una contraseña o una cadena de
@@ -182,7 +198,12 @@ JSON legible, así que los diffs de git, la fusión y la búsqueda siguen igual.
 
 La primera vez se pide una **contraseña maestra** para la bóveda. Necesitarás la
 misma en tus otros equipos; **si la olvidas, esos bloques se pierden** (no hay
-recuperación posible). La clave se cierra sola a los 5 minutos sin usarla.
+recuperación posible).
+
+El bloque nace tapado: **copiar** al portapapeles sin enseñarlo es lo normal, y
+el ojo lo destapa 20 segundos con una barra que va marcando lo que queda. La
+clave se cierra sola a los 5 minutos sin usarla, y entonces el bloque lo dice y
+ofrece un botón para volver a abrirla ahí mismo.
 
 El valor no pasa nunca por el documento en claro: se escribe en un diálogo, lo
 cifra Rust y en la nota solo queda `v1.<base64>`.
@@ -198,7 +219,7 @@ librerías públicas, sin depender de nada del proyecto:
 
 ```bash
 cd herramientas/recuperar
-cargo run -- ~/.local/share/net.adcomp.notalocal/Workspace "tu contraseña maestra"
+cargo run -- ~/.local/share/pe.pluton.nivora/Workspace "tu contraseña maestra"
 ```
 
 El formato está anotado dentro de cada `secretos.json` (`kdf`, `cifrado`,

@@ -91,6 +91,10 @@ const SANGRIA_EM = 1.6;
 const ZONA_IZQUIERDA = 60;
 /** Cuánto dura el destello azul del bloque recién soltado (ver styles.scss). */
 const DESTELLO_MS = 900;
+/** Franja junto a cada borde donde el arrastre empieza a desplazar la vista. */
+const BORDE_AUTOSCROLL = 64;
+/** Píxeles por fotograma pegado al borde (≈ 840 px/s a 60 fps). */
+const VELOCIDAD_AUTOSCROLL = 14;
 
 class BlockDragView {
   private readonly handle: HTMLElement;
@@ -111,13 +115,21 @@ class BlockDragView {
   private timerDestello: number | null = null;
 
   /** Última posición del ratón dentro del editor: el handle vive fuera de él,
-   *  así que al pulsarlo hay que resolver el bloque con estas coordenadas. */
-  private lastX = 0;
-  private lastY = 0;
+   *  así que al pulsarlo hay que resolver el bloque con estas coordenadas. Y al
+   *  desplazar hace falta para recolocarlo sin que el ratón se mueva. */
+  private puntero: { x: number; y: number } | null = null;
   /** Punto donde se pulsó el handle, para distinguir clic de arrastre. */
   private downX = 0;
   private downY = 0;
   private armado = false;
+
+  /** Contenedor con scroll donde vive el editor, resuelto al empezar a arrastrar. */
+  private scroller: HTMLElement | null = null;
+  /** Última posición del puntero durante el arrastre. Hace falta guardarla: si
+   *  el ratón se queda quieto en el borde no llegan más `mousemove`, pero el
+   *  desplazamiento automático sigue y la línea tiene que recalcularse. */
+  private raton: { x: number; y: number } | null = null;
+  private rafScroll = 0;
 
   constructor(
     private readonly view: EditorView,
@@ -145,6 +157,9 @@ class BlockDragView {
        handle. Con el listener en el editor, al mover el ratón hacia el handle
        se salía de él y empezaba a ocultarse (aparecía y desaparecía). */
     document.addEventListener('mousemove', this.onEditorMove, true);
+    // `capture` porque `scroll` no burbujea: así se oye el de cualquier
+    // contenedor. `passive` porque solo se lee, nunca se cancela.
+    document.addEventListener('scroll', this.onScroll, { capture: true, passive: true });
     this.handle.addEventListener('mouseenter', this.clearHideTimer);
     this.handle.addEventListener('mouseleave', this.scheduleHide);
     this.handle.addEventListener('mousedown', this.onHandleDown);
@@ -155,15 +170,39 @@ class BlockDragView {
     if (this.dragging || this.menu) return;
     // Sobre el propio handle no se recalcula nada: ya está donde toca.
     if (e.target === this.handle) return;
+    this.puntero = { x: e.clientX, y: e.clientY };
+    this.situar(false);
+  };
 
+  /**
+   * Al desplazar, el documento se mueve pero el ratón no, así que **no llega
+   * ningún `mousemove`** y el handle se quedaba clavado en la pantalla, ya sin
+   * relación con ningún bloque. Y al mover luego el ratón sin salir del mismo
+   * bloque, el atajo de «mismo bloque, no recoloco» le impedía volver a su
+   * sitio: había que ir a otro bloque para recuperarlo.
+   *
+   * Se escucha en `document` con captura porque el evento `scroll` **no
+   * burbujea**: así vale cualquier contenedor que desplace, sin nombrarlo.
+   */
+  private onScroll = (): void => {
+    if (this.dragging || this.menu || !this.puntero) return;
+    this.situar(true);
+  };
+
+  /**
+   * Coloca el handle junto al bloque que haya bajo la última posición conocida
+   * del ratón. `forzar` se salta el atajo del «mismo bloque», que existe para
+   * no recolocar en cada píxel al recorrer una línea pero estorba cuando lo que
+   * se movió fue el documento.
+   */
+  private situar(forzar: boolean): void {
+    if (!this.puntero) return;
+    const { x, y } = this.puntero;
     const er = this.view.dom.getBoundingClientRect();
     /* Basta con estar a la ALTURA de la línea: sirve el texto, el hueco a su
        derecha y el canalón de la izquierda (donde se dibuja el handle). */
     const enBanda =
-      e.clientY >= er.top &&
-      e.clientY <= er.bottom &&
-      e.clientX >= er.left - ZONA_IZQUIERDA &&
-      e.clientX <= er.right + 8;
+      y >= er.top && y <= er.bottom && x >= er.left - ZONA_IZQUIERDA && x <= er.right + 8;
     if (!enBanda) {
       this.scheduleHide();
       return;
@@ -172,10 +211,8 @@ class BlockDragView {
     /* Fuera del ancho del texto el bloque se resuelve por su ALTURA. Se usa el
        centro de la columna y no el borde: pegado al margen izquierdo se cae en
        la zona de los números, donde posAtCoords devuelve la línea vecina. */
-    const dentro = e.clientX >= er.left + 6 && e.clientX <= er.right - 6;
-    this.lastX = dentro ? e.clientX : er.left + er.width / 2;
-    this.lastY = e.clientY;
-    const info = this.blockAt(this.lastX, this.lastY);
+    const dentro = x >= er.left + 6 && x <= er.right - 6;
+    const info = this.blockAt(dentro ? x : er.left + er.width / 2, y);
     if (!info) {
       this.scheduleHide();
       return;
@@ -183,17 +220,25 @@ class BlockDragView {
     this.clearHideTimer();
     // Si sigue siendo el mismo bloque no se recoloca: evita el parpadeo al
     // recorrer un ítem con el ratón.
-    if (info.pos === this.hoverPos && this.handle.style.display !== 'none') return;
+    if (!forzar && info.pos === this.hoverPos && this.handle.style.display !== 'none') return;
     this.hoverPos = info.pos;
 
     const rect = info.dom.getBoundingClientRect();
     this.handle.style.display = 'flex';
-    this.handle.style.top = `${rect.top + 1}px`;
+    /* Alineado con la primera línea del bloque, que es lo natural en un párrafo
+       largo. Pero un bloque más bajo que el propio handle —una línea horizontal
+       mide 2 px y este 24— lo dejaría colgando sobre el bloque de abajo, y
+       parecería que es el suyo. En ese caso se centra. */
+    const alto = this.handle.offsetHeight || 24;
+    this.handle.style.top =
+      rect.height >= alto
+        ? `${rect.top + 1}px`
+        : `${rect.top + (rect.height - alto) / 2}px`;
     /* Columna fija en el margen del documento, no relativa al bloque. Los
        números y viñetas viven en el padding de la propia lista, así que
        colocarlo respecto al <li> lo dejaba justo encima de ellos. */
     this.handle.style.left = `${this.view.dom.getBoundingClientRect().left - 28}px`;
-  };
+  }
 
   private scheduleHide = (): void => {
     this.clearHideTimer();
@@ -223,7 +268,38 @@ class BlockDragView {
     this.downY = e.clientY;
     document.addEventListener('mousemove', this.onDragMove, true);
     document.addEventListener('mouseup', this.onDragEnd, true);
+    // `passive: false` es imprescindible: sin él el navegador ignora el
+    // `preventDefault()` y desplaza además por su cuenta, con lo que la vista
+    // se movería el doble.
+    document.addEventListener('wheel', this.onDragWheel, { capture: true, passive: false });
   };
+
+  /**
+   * Rueda durante el arrastre: desplaza la vista sin soltar el bloque.
+   *
+   * Es la forma **precisa** de llegar al hueco que se quiere — la franja de los
+   * bordes sirve para cruzar de largo, pero afinar con ella es incómodo porque
+   * la velocidad depende de lo pegado al borde que esté el ratón. Con la rueda
+   * el usuario decide cuánto avanza y para donde quiere.
+   */
+  private onDragWheel = (e: WheelEvent): void => {
+    if (!this.dragging || !this.scroller) return;
+    /* Se toma el control en vez de dejar hacer al navegador: durante el
+       arrastre, bajo el cursor puede haber cualquier cosa (la barra de
+       herramientas, que también desborda), y desplazaría lo que no toca. */
+    e.preventDefault();
+    this.scroller.scrollTop += this.pasoRueda(e);
+    this.repintarDestino();
+  };
+
+  /** `deltaY` en píxeles, sea cual sea la unidad que mande el sistema. */
+  private pasoRueda(e: WheelEvent): number {
+    if (e.deltaMode === WheelEvent.DOM_DELTA_LINE) return e.deltaY * 16;
+    if (e.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+      return e.deltaY * (this.scroller?.clientHeight ?? 400);
+    }
+    return e.deltaY;
+  }
 
   /**
    * Qué se va a mover: la selección de varios bloques si el bloque señalado
@@ -262,16 +338,32 @@ class BlockDragView {
       document.body.style.cursor = 'grabbing';
       document.body.style.userSelect = 'none';
       this.crearFantasma(e);
+      this.scroller = this.buscarScroller();
+      this.raton = { x: e.clientX, y: e.clientY };
+      if (!this.rafScroll) this.rafScroll = requestAnimationFrame(this.autoScroll);
     }
     if (!this.dragging) return;
 
+    this.raton = { x: e.clientX, y: e.clientY };
     if (this.fantasma) {
       this.fantasma.style.transform = `translate(${e.clientX + this.fantasmaDX}px, ${
         e.clientY + this.fantasmaDY
       }px)`;
     }
+    this.repintarDestino();
+  };
 
-    const plan = this.planSoltar(e.clientX, e.clientY);
+  private pararAutoScroll(): void {
+    if (this.rafScroll) cancelAnimationFrame(this.rafScroll);
+    this.rafScroll = 0;
+    this.scroller = null;
+    this.raton = null;
+  }
+
+  /** Recalcula y repinta la línea de destino con la última posición del ratón. */
+  private repintarDestino(): void {
+    if (!this.raton) return;
+    const plan = this.planSoltar(this.raton.x, this.raton.y);
     this.destino = plan;
     if (!plan) {
       this.indicator.style.display = 'none';
@@ -281,11 +373,80 @@ class BlockDragView {
     this.indicator.style.left = `${plan.left}px`;
     this.indicator.style.width = `${this.view.dom.getBoundingClientRect().right - plan.left}px`;
     this.indicator.style.top = `${plan.y}px`;
+  }
+
+  /**
+   * Desplaza solo el contenedor cuando el puntero se acerca a un borde.
+   *
+   * Sin esto, mover un bloque por debajo de una imagen alta era imposible: el
+   * hueco de destino queda fuera de la pantalla y no se puede llevar el ratón
+   * hasta él, porque para desplazar habría que soltar el botón.
+   *
+   * El bucle vive mientras dure el arrastre y no se enciende y apaga al entrar
+   * y salir de la franja: así no hay estado que se quede desincronizado, y un
+   * fotograma que no desplaza nada no cuesta nada.
+   */
+  private autoScroll = (): void => {
+    if (!this.dragging) {
+      this.rafScroll = 0;
+      return;
+    }
+    const paso = this.velocidadScroll();
+    if (paso !== 0 && this.scroller) {
+      const antes = this.scroller.scrollTop;
+      this.scroller.scrollTop += paso;
+      // Al llegar al tope deja de moverse: repintar entonces sería trabajo
+      // inútil en cada fotograma.
+      if (this.scroller.scrollTop !== antes) this.repintarDestino();
+    }
+    this.rafScroll = requestAnimationFrame(this.autoScroll);
   };
+
+  /** Píxeles a desplazar este fotograma; negativo hacia arriba, 0 si no toca. */
+  private velocidadScroll(): number {
+    if (!this.scroller || !this.raton) return 0;
+    const r = this.scroller.getBoundingClientRect();
+    const desdeArriba = this.raton.y - r.top;
+    const desdeAbajo = r.bottom - this.raton.y;
+
+    /* Rampa cuadrática: al entrar en la franja apenas se mueve y pegado al
+       borde va rápido. Con velocidad constante o se pasa de largo el destino o
+       tarda demasiado en cruzar una imagen grande. */
+    const rampa = (dentro: number) => {
+      const t = Math.min(Math.max(dentro, 0), BORDE_AUTOSCROLL) / BORDE_AUTOSCROLL;
+      return Math.max(1, Math.round(t * t * VELOCIDAD_AUTOSCROLL));
+    };
+
+    if (desdeArriba < BORDE_AUTOSCROLL) return -rampa(BORDE_AUTOSCROLL - desdeArriba);
+    if (desdeAbajo < BORDE_AUTOSCROLL) return rampa(BORDE_AUTOSCROLL - desdeAbajo);
+    return 0;
+  }
+
+  /**
+   * Antecesor con scroll propio del editor. Se busca en vez de fijar la clase
+   * del contenedor (`.pane-scroll`) para no atar esta extensión a la plantilla
+   * de la app: si mañana el editor se mete en otro sitio, sigue funcionando.
+   */
+  private buscarScroller(): HTMLElement | null {
+    let el = this.view.dom.parentElement;
+    while (el && el !== document.body) {
+      const desborde = getComputedStyle(el).overflowY;
+      if (
+        (desborde === 'auto' || desborde === 'scroll') &&
+        el.scrollHeight > el.clientHeight + 1
+      ) {
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }
 
   private onDragEnd = (e: MouseEvent): void => {
     document.removeEventListener('mousemove', this.onDragMove, true);
     document.removeEventListener('mouseup', this.onDragEnd, true);
+    document.removeEventListener('wheel', this.onDragWheel, true);
+    this.pararAutoScroll();
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     this.indicator.style.display = 'none';
@@ -457,14 +618,59 @@ class BlockDragView {
   private blockAt(x: number, y: number): BlockInfo | null {
     const posInfo = this.view.posAtCoords({ left: x, top: y });
     if (!posInfo) return null;
-    const $pos = this.view.state.doc.resolve(posInfo.pos);
-    if ($pos.depth === 0) return null;
 
-    const pos = $pos.before(1);
+    const doc = this.view.state.doc;
+    const $pos = doc.resolve(posInfo.pos);
+    let pos: number;
+    if ($pos.depth > 0) {
+      pos = $pos.before(1);
+    } else if (posInfo.inside >= 0) {
+      /* Un nodo `atom` de primer nivel —imagen, bloque cifrado, línea
+         horizontal— no tiene contenido dentro del que resolver, así que
+         `posAtCoords` devuelve una posición del propio documento (profundidad
+         0) en vez de una interior. Ahí el bloque es el que señala `inside`.
+         Sin esto esos bloques se quedaban SIN handle y no había forma de
+         moverlos. */
+      const $dentro = doc.resolve(posInfo.inside);
+      pos = $dentro.depth > 0 ? $dentro.before(1) : posInfo.inside;
+    } else {
+      /* El punto cayó en el HUECO entre dos bloques: los párrafos llevan margen
+         y ahí no hay nada. `posAtCoords` devuelve entonces una posición del
+         documento sin nodo dentro (`inside === -1`), y devolver null hacía
+         desaparecer el handle al pasar por cualquier separación — se notaba
+         sobre todo al desplazar, cuando el ratón se queda quieto justo ahí.
+         Se elige el bloque vecino más cercano. */
+      const i = $pos.index();
+      const vecino = this.vecinoMasCercano(y, [
+        i > 0 ? $pos.posAtIndex(i - 1) : null,
+        i < doc.childCount ? $pos.posAtIndex(i) : null,
+      ]);
+      if (vecino == null) return null;
+      pos = vecino;
+    }
+
     const node = this.view.state.doc.nodeAt(pos);
     const dom = this.view.nodeDOM(pos);
     if (!node || !(dom instanceof HTMLElement)) return null;
     return { pos, node, dom };
+  }
+
+  /** De las posiciones dadas, la del bloque cuya caja está más cerca de `y`. */
+  private vecinoMasCercano(y: number, posiciones: (number | null)[]): number | null {
+    let mejor: number | null = null;
+    let cerca = Infinity;
+    for (const p of posiciones) {
+      if (p == null) continue;
+      const dom = this.view.nodeDOM(p);
+      if (!(dom instanceof HTMLElement)) continue;
+      const r = dom.getBoundingClientRect();
+      const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+      if (d < cerca) {
+        cerca = d;
+        mejor = p;
+      }
+    }
+    return mejor;
   }
 
   private mover(origen: Rango, destino: Destino): void {
@@ -637,11 +843,15 @@ class BlockDragView {
   destroy(): void {
     this.clearHideTimer();
     if (this.timerDestello != null) clearTimeout(this.timerDestello);
+    this.dragging = false;
+    this.pararAutoScroll();
     this.cerrarMenu();
     this.quitarFantasma();
     document.removeEventListener('mousemove', this.onEditorMove, true);
+    document.removeEventListener('scroll', this.onScroll, true);
     document.removeEventListener('mousemove', this.onDragMove, true);
     document.removeEventListener('mouseup', this.onDragEnd, true);
+    document.removeEventListener('wheel', this.onDragWheel, true);
     this.handle.remove();
     this.indicator.remove();
   }

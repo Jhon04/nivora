@@ -9,6 +9,14 @@ export interface SlashItem {
   title: string;
   subtitle: string;
   icon: string;
+  /**
+   * Ligadura de la fuente Material Icons. Si está, se pinta en vez de `icon`,
+   * con la casilla rellena del color de acento y el glifo en blanco.
+   *
+   * Existe porque un emoji trae su propio color y no hay forma de cambiarlo:
+   * la 🔑 salía dorada entre glifos monocromos y desentonaba.
+   */
+  iconoMaterial?: string;
   keywords?: string[];
   /** Inserta un bloque NUEVO en vez de convertir el actual (divisor, imagen):
    *  el menú del bloque ⠿ las deja fuera, porque ahí son "convertir en…". */
@@ -25,6 +33,24 @@ export interface SlashItem {
 export const EVENTO_IMAGEN = 'pedir-imagen';
 /** Aviso para abrir el diálogo del bloque cifrado (ver `editor/secreto.ts`). */
 export const EVENTO_SECRETO = 'pedir-secreto';
+/**
+ * Un bloque cifrado pide que se abra el candado de la bóveda.
+ *
+ * Va aparte de `EVENTO_SECRETO` porque son dos intenciones distintas: aquel
+ * cambia el valor, este solo quiere poder leerlo. Compartirlos obligaría a
+ * pasar por la pantalla de escribir un valor nuevo para poder mirar el que ya
+ * hay.
+ */
+export const EVENTO_SECRETO_ABRIR = 'pedir-desbloqueo';
+/**
+ * La bóveda acaba de desbloquearse. Lo emite `editor.ts` y lo escuchan **todos**
+ * los bloques cifrados de la nota, que así se enteran sin conocer al componente
+ * ni poder inyectar servicios.
+ *
+ * Sube por burbujeo hasta `document`, que es donde escuchan: un NodeView se
+ * construye dentro de `new EditorView`, cuando `editor.view` todavía no existe.
+ */
+export const EVENTO_SECRETO_ABIERTO = 'secretos-abiertos';
 
 /** Lo que el componente debe implementar para pintar el popup. */
 export type SlashRender = () => {
@@ -87,6 +113,20 @@ export const SLASH_ITEMS: SlashItem[] = [
     command: ({ editor, range }) => editor.chain().focus().deleteRange(range).setHorizontalRule().run(),
   },
   {
+    title: 'Tabla', subtitle: '3 × 3 con fila de cabecera', icon: '⊞',
+    keywords: ['tabla', 'table', 'cuadro', 'filas', 'columnas', 'celda'],
+    insercion: true,
+    command: ({ editor, range }) =>
+      editor
+        .chain()
+        .focus()
+        .deleteRange(range)
+        // Con cabecera: es lo que se quiere el 90% de las veces y quitarla es un
+        // clic, mientras que ponerla luego obliga a rehacer la primera fila.
+        .insertTable({ rows: 3, cols: 3, withHeaderRow: true })
+        .run(),
+  },
+  {
     title: 'Imagen', subtitle: 'Elegir un fichero del equipo', icon: '🖼',
     keywords: ['imagen', 'image', 'foto', 'photo', 'img', 'captura', 'picture'],
     insercion: true,
@@ -101,6 +141,7 @@ export const SLASH_ITEMS: SlashItem[] = [
     title: 'Bloque cifrado',
     subtitle: 'Contraseñas, cadenas de conexión…',
     icon: '🔑',
+    iconoMaterial: 'key',
     keywords: ['cifrado', 'secreto', 'password', 'contraseña', 'clave', 'credencial', 'token'],
     insercion: true,
     command: ({ editor, range }) => {

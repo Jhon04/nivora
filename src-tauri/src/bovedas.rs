@@ -45,13 +45,16 @@ pub struct Boveda {
     /// Ruta absoluta. Absoluta y no relativa porque el registro es de este
     /// equipo y así una bóveda puede vivir donde quiera el usuario.
     pub ruta: String,
-    /// El cuaderno es de otra persona: se ve pero no se toca.
+    /// La bóveda **entera** se ve pero no se toca.
     ///
-    /// Lo decide la **propiedad del repositorio**, no el permiso que dé GitHub
-    /// (ver `github::puede_escribir`): en un repositorio privado personal todo
-    /// colaborador puede empujar, así que mirar el permiso dejaría editable — y
-    /// borrable — un cuaderno ajeno. Tu propio cuaderno en otro equipo sí se
-    /// edita, porque el repositorio es tuyo.
+    /// Lo decide el permiso real de GitHub (`permissions.push`), así que en la
+    /// práctica solo pasa con un repositorio de **organización** donde tienes rol
+    /// *Read*: en uno privado personal GitHub le da escritura a todo
+    /// colaborador. Es a propósito — compartir una bóveda es montar un cuaderno
+    /// de equipo, y lo que protege hojas concretas es el candado por nota
+    /// (`Documento::bloqueada`), no cerrar el cuaderno entero.
+    ///
+    /// Quién es el dueño es otra pregunta distinta; va en `soy_dueno`.
     ///
     /// El veto lo aplica Rust en cada comando de escritura, no solo la interfaz.
     #[serde(default)]

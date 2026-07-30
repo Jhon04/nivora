@@ -110,6 +110,98 @@ function montar(opciones: {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const interno = (f: { componentInstance: unknown }) => f.componentInstance as any;
 
+describe('ConfiguracionDialog · navegación lateral', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('el rótulo más largo cabe en su recuadro, también en negrita', async () => {
+    const { fixture } = montar({ usuario: ANA, estado: CON_REPO });
+    // El fixture no pasa por MatDialog, que es quien fija el ancho: se le da a
+    // mano para que la rejilla reparta como en la app.
+    (fixture.nativeElement as HTMLElement).style.width = '760px';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const activo = (fixture.nativeElement as HTMLElement).querySelector(
+      '.cfg-nav-item.activo',
+    ) as HTMLElement;
+    expect(activo.textContent).toContain('Cuenta y sincronización');
+
+    /* Seleccionar pone el rótulo en negrita, y en negrita ocupa más: con la
+       columna a 200 px la última letra se salía del recuadro resaltado. */
+    expect(getComputedStyle(activo).fontWeight).toBe('600');
+    expect(activo.scrollWidth).toBeLessThanOrEqual(activo.clientWidth);
+  });
+
+  it('una sección alta se desplaza en vez de cortarse', async () => {
+    const { fixture } = montar({ usuario: ANA, estado: CON_REPO });
+    const el = fixture.nativeElement as HTMLElement;
+    el.style.width = '760px';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    interno(fixture).seccion.set('secretos');
+    fixture.detectChanges();
+
+    const cfg = el.querySelector('.cfg') as HTMLElement;
+    const panel = el.querySelector('.cfg-panel') as HTMLElement;
+    /* Se achica el diálogo a la fuerza para provocar el desbordamiento sin
+       depender de lo alta que sea la ventana donde corran los tests. */
+    cfg.style.minHeight = '0';
+    cfg.style.height = '160px';
+
+    /* Un ítem de rejilla arranca con `min-height: auto` y no encoge por debajo
+       de su contenido: el panel crecía más que el diálogo, MatDialog lo
+       recortaba y su `overflow-y` no llegaba a activarse. */
+    expect(panel.scrollHeight).withContext('hay contenido de sobra').toBeGreaterThan(
+      panel.clientHeight,
+    );
+    expect(Math.round(panel.getBoundingClientRect().height)).toBe(
+      Math.round(cfg.getBoundingClientRect().height),
+    );
+  });
+
+  it('el aviso de rotación se lee como un párrafo, no en columnas', async () => {
+    const { fixture } = montar({ usuario: ANA, estado: CON_REPO });
+    const el = fixture.nativeElement as HTMLElement;
+    el.style.width = '760px';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    interno(fixture).seccion.set('secretos');
+    fixture.detectChanges();
+
+    const aviso = Array.from(el.querySelectorAll<HTMLElement>('.cfg-aviso')).find((p) =>
+      p.textContent?.includes('recifra todos los bloques'),
+    )!;
+    expect(aviso).withContext('el aviso está en la sección').toBeTruthy();
+
+    /* Con `display: flex` cada `<strong>` era un ítem del contenedor, y los
+       ítems flex se blockifican: el texto salía partido en columnas estrechas.
+       En flujo normal siguen siendo `inline`. */
+    const negritas = Array.from(aviso.querySelectorAll('strong'));
+    expect(negritas.length).toBeGreaterThan(1);
+    for (const n of negritas) {
+      expect(getComputedStyle(n).display).withContext(n.textContent ?? '').toBe('inline');
+    }
+    expect(getComputedStyle(aviso).display).not.toBe('flex');
+  });
+
+  it('ninguna entrada desborda su recuadro', async () => {
+    const { fixture } = montar({ usuario: ANA, estado: CON_REPO });
+    (fixture.nativeElement as HTMLElement).style.width = '760px';
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    const items = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.cfg-nav-item'),
+    );
+    expect(items.length).toBe(4);
+    for (const it of items) {
+      expect(it.scrollWidth).withContext(it.textContent ?? '').toBeLessThanOrEqual(it.clientWidth);
+    }
+  });
+});
+
 describe('ConfiguracionDialog', () => {
   afterEach(() => TestBed.resetTestingModule());
 

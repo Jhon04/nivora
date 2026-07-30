@@ -33,6 +33,14 @@ html {
   --texto-tenue: light-dark(rgba(0, 0, 0, 0.35), rgba(255, 255, 255, 0.38));
   --sombra-color: light-dark(rgba(0, 0, 0, 0.2), rgba(0, 0, 0, 0.6));
   --verde-ok: light-dark(#2e7d32, #7ee787);
+
+  /* Bloque cifrado. Ámbar y no el color primario a propósito: el primario está
+     por toda la interfaz (botones, selección, enlaces) y un secreto tiene que
+     distinguirse de un bloque cualquiera de un vistazo, sin leerlo.
+     No hay color de relleno: el campo va sin fondo para que el rótulo, que se
+     monta sobre el borde, pueda taparlo con el color del tema. */
+  --secreto-acento: light-dark(#a15c07, #f0b429);
+  --secreto-borde: light-dark(rgba(161, 92, 7, 0.28), rgba(240, 180, 41, 0.26));
 }
 
 body {
@@ -677,6 +685,282 @@ body {
     font-weight: 600;
     font-size: 0.78rem;
   }
+}
+
+/* ---------- Tablas ----------
+   Como el resto de lo que pinta ProseMirror, va aquí y no en editor.scss: el
+   contenido del editor no lleva el atributo [_ngcontent-…] con el que Angular
+   sella los estilos de componente.
+
+   Cuelga de `.tableWrapper` y no de una clase nuestra porque con `resizable` el
+   nodo lo pinta `TableView`, que construye su propio DOM e ignora
+   `HTMLAttributes`: una clase puesta en la configuración no llega nunca. */
+.ProseMirror .tableWrapper {
+  margin: 0.8rem 0;
+  /* Una tabla ancha se desplaza dentro de su caja en vez de ensanchar la nota
+     y sacar barra horizontal a todo el editor. */
+  overflow-x: auto;
+
+  table {
+    /* `fixed` es lo que hace respetable el ancho de columna: con `auto` el
+       navegador reparte según el contenido y el tirador no serviría de nada. */
+    table-layout: fixed;
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0;
+  }
+
+  td,
+  th {
+    position: relative; /* ancla del tirador de columna */
+    min-width: 3em;
+    padding: 6px 9px;
+    border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.22));
+    vertical-align: top;
+    /* Sin esto una palabra larga (una URL) ensancha la columna y se lleva por
+       delante el reparto de anchos. */
+    overflow-wrap: anywhere;
+
+    > * { margin: 0; }
+    > * + * { margin-top: 0.4em; }
+  }
+
+  th {
+    background: var(--capa-suave);
+    font-weight: 600;
+    text-align: left;
+  }
+
+  /* Celdas elegidas para combinar: se la pone el plugin de tablas. */
+  .selectedCell::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 16%, transparent);
+    pointer-events: none;
+  }
+
+  /* Tirador entre columnas: se agarra en una franja ancha, pero solo se pinta
+     la línea. */
+  .column-resize-handle {
+    position: absolute;
+    right: -2px;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--mat-sys-primary, #3b82f6);
+    pointer-events: none;
+  }
+}
+
+/* Mientras se arrastra el tirador el cursor manda en todo el editor: si no, al
+   salirse de la celda vuelve al de texto en mitad del ajuste. */
+.ProseMirror.resize-cursor {
+  cursor: col-resize;
+}
+
+/* ---------- Bloque cifrado (ver editor/secreto.ts) ----------
+   Va aquí y NO en editor.scss: lo pinta un NodeView con document.createElement,
+   así que sus elementos no llevan el atributo [_ngcontent-…] que Angular sella
+   en cada selector de un estilo de componente, y ninguna regla los alcanzaría.
+   Misma razón por la que están aquí los estilos de listas planas y del arrastre
+   de bloques. */
+/* Dos filas (cabecera + campo) y no una: revelado, el valor puede ser una
+   Dos filas (cabecera + campo) y no una: revelado, el valor puede ser una
+   cadena de conexión larga, y en una sola fila empujaba a los botones y los
+   hacía saltar de sitio justo cuando ibas a pulsarlos. */
+.bloque-secreto {
+  position: relative;
+  /* Margen de arriba más generoso: el rótulo asoma por encima del recuadro y
+     sin hueco se montaría sobre el párrafo anterior. */
+  margin: 1.1rem 0 0.7rem;
+  font-size: 0.88rem;
+
+  /* Rótulo flotante, como el de un `mat-form-field` outlined: montado SOBRE el
+     borde superior, con el fondo del tema detrás para tapar el trozo de línea
+     que si no le cruzaría el texto. Va en la raíz y no dentro del campo porque
+     el campo recorta con `overflow: hidden`. */
+  .secreto-etiqueta {
+    position: absolute;
+    top: -7px;
+    left: 12px;
+    z-index: 1;
+    max-width: calc(100% - 34px);
+    padding: 0 5px;
+    background: var(--mat-sys-surface, #fff);
+    color: var(--secreto-acento);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* El recuadro, en una sola fila. SIN relleno propio a propósito: el rótulo se
+     apoya a caballo del borde, y si el campo tuviera color de fondo se vería el
+     parche del rótulo por dentro. */
+  .secreto-campo {
+    position: relative; /* ancla de la cuenta atrás */
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 6px 9px 12px;
+    border: 1px solid var(--secreto-borde);
+    border-radius: 8px;
+    overflow: hidden; /* la barra de cuenta atrás se recorta en las esquinas */
+  }
+
+  /* La llave, dentro del campo y a la izquierda, como el prefijo de un campo
+     Material. */
+  .secreto-sello {
+    display: inline-flex;
+    flex: 0 0 auto;
+    color: var(--secreto-acento);
+
+    .material-icons { font-size: 17px; }
+  }
+
+  .secreto-valor {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    /* Que se pueda seleccionar a mano cuando está revelado. */
+    user-select: text;
+  }
+
+  .secreto-acciones {
+    display: flex;
+    gap: 2px;
+    flex: 0 0 auto;
+
+    button {
+      all: unset;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      padding: 5px;
+      border-radius: 6px;
+      color: var(--mat-sys-on-surface, inherit);
+      opacity: 0.55;
+      transition: opacity 0.12s, background 0.12s;
+
+      .material-icons { font-size: 17px; }
+
+      &:hover {
+        opacity: 1;
+        background: var(--capa-hover-fuerte);
+      }
+
+      &:focus-visible {
+        opacity: 1;
+        outline: 2px solid var(--secreto-acento);
+        outline-offset: 1px;
+      }
+    }
+
+    /* Copiar es lo que se hace el 90% de las veces: se marca como principal en
+       vez de dejar los tres iconos igual de apagados. */
+    button.secreto-principal {
+      opacity: 0.85;
+      background: color-mix(in srgb, var(--secreto-acento) 12%, transparent);
+      color: var(--secreto-acento);
+
+      &:hover { opacity: 1; background: color-mix(in srgb, var(--secreto-acento) 22%, transparent); }
+      &.hecho { color: var(--verde-ok); background: transparent; opacity: 1; }
+    }
+  }
+
+  /* Fuera de `.secreto-acciones` a propósito: ahí dentro el selector
+     `.secreto-acciones button` le ganaba en especificidad (0,2,1 contra 0,2,0) y
+     le imponía `display: inline-flex`, así que salía en los cuatro estados. */
+  .secreto-abrir {
+    all: unset;
+    cursor: pointer;
+    display: none; /* solo en el estado `bloqueado` */
+    flex: 0 0 auto;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 6px;
+    /* Color primario y no el ámbar: en el estado `bloqueado` el ámbar está
+       apagado a propósito, y teñir con él la única acción posible la dejaba
+       gris justo cuando hay que invitar a pulsarla. */
+    background: var(--mat-sys-primary, #3b82f6);
+    color: var(--mat-sys-on-primary, #fff);
+    font-size: 0.76rem;
+    font-weight: 600;
+
+    &:hover { filter: brightness(1.08); }
+    &:focus-visible { outline: 2px solid var(--mat-sys-primary, #3b82f6); outline-offset: 2px; }
+  }
+
+  .secreto-nota {
+    margin: 6px 0 0;
+    font-size: 0.76rem;
+    opacity: 0.75;
+
+    &:empty { display: none; }
+  }
+
+  /* Cuenta atrás del revelado. Animación de CSS: el NodeView solo la quita y la
+     vuelve a poner para reiniciarla, sin temporizadores que repinten.
+
+     Va dentro del recuadro del valor, no en el borde de la tarjeta: ahí se
+     confundía con el borde ámbar del estado «a la vista» y no se veía. */
+  .secreto-barra {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 2px;
+    width: 100%;
+    transform-origin: left;
+    background: var(--secreto-acento);
+    animation: secreto-drenar 20s linear forwards;
+  }
+
+  /* --- estados --- */
+  &[data-estado='visible'] .secreto-campo {
+    border-color: var(--secreto-acento);
+  }
+
+  &[data-estado='bloqueado'],
+  &[data-estado='error'] {
+    /* Se apaga el ámbar entero, borde incluido: el bloque no está protegiendo
+       nada ahora mismo, está fuera de servicio, y parecer normal induciría a
+       pensar que va a funcionar. */
+    --secreto-acento: var(--texto-tenue);
+    --secreto-borde: var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+
+    .secreto-valor { opacity: 0.5; }
+  }
+
+  &[data-estado='bloqueado'] {
+    .secreto-abrir { display: inline-flex; }
+    /* Revelar y copiar necesitan la clave; cambiar el valor no (su diálogo pide
+       la contraseña por su cuenta), así que ese botón se queda. */
+    .secreto-requiere-clave { display: none; }
+  }
+
+  &[data-estado='error'] .secreto-nota { color: var(--mat-sys-error, #b3261e); opacity: 1; }
+
+  &.ProseMirror-selectednode .secreto-campo {
+    outline: 2px solid var(--mat-sys-primary, #3b82f6);
+    outline-offset: 1px;
+  }
+}
+
+@keyframes secreto-drenar {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
+/* Quien haya pedido menos movimiento no necesita una barra animada: se queda
+   fija y el valor se sigue tapando igual a los 20 s. */
+@media (prefers-reduced-motion: reduce) {
+  .bloque-secreto .secreto-barra { animation: none; }
 }
 
 /* Destello del bloque recién soltado: azul translúcido que se apaga solo. La

@@ -6,7 +6,7 @@
     "analytics": false
   },
   "projects": {
-    "nota-local": {
+    "nivora": {
       "projectType": "application",
       "schematics": {
         "@schematics/angular:component": {
@@ -65,10 +65,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "nota-local:build:production"
+              "buildTarget": "nivora:build:production"
             },
             "development": {
-              "buildTarget": "nota-local:build:development"
+              "buildTarget": "nivora:build:development"
             }
           },
           "defaultConfiguration": "development"

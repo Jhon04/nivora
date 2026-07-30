@@ -189,6 +189,45 @@ describe('App', () => {
   });
 });
 
+describe('App · botón de ajustes', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  async function montarPie(colapsada: boolean) {
+    const fixture = montar();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    interno(fixture).sidebarColapsada.set(colapsada);
+    fixture.detectChanges();
+
+    const el = fixture.nativeElement as HTMLElement;
+    // El fixture vive fuera del layout de la app, así que se le da un ancho a
+    // la barra lateral para que el pie tenga algo que repartir.
+    const aside = el.querySelector('aside') as HTMLElement;
+    aside.style.width = colapsada ? '56px' : '240px';
+    return {
+      boton: el.querySelector('.btn-ajustes') as HTMLElement,
+      pie: el.querySelector('.side-pie') as HTMLElement,
+    };
+  }
+
+  it('ocupa todo el ancho del pie con el menú expandido', async () => {
+    const { boton, pie } = await montarPie(false);
+
+    /* `all: unset` deja el ancho en `auto`: sin `flex: 1` el botón se quedaba
+       del tamaño de su texto y la zona pulsable era mucho menor de lo que
+       parecía. */
+    const hueco = pie.clientWidth - 12; // 6px de padding a cada lado
+    expect(Math.round(boton.getBoundingClientRect().width)).toBe(hueco);
+  });
+
+  it('colapsado se queda cuadrado', async () => {
+    const { boton } = await montarPie(true);
+
+    // Ahí manda el ancho fijo: crecer lo deformaría.
+    expect(Math.round(boton.getBoundingClientRect().width)).toBe(36);
+  });
+});
+
 describe('App · cambio de bóveda', () => {
   afterEach(() => TestBed.resetTestingModule());
 

@@ -19,8 +19,8 @@
             #origenBovedas="cdkOverlayOrigin"
             [disabled]="cambiandoBoveda()"
             (click)="menuBovedas.set(!menuBovedas())"
-            [title]="bovedas.activa()?.nombre || 'Nota Local'">
-            <h1>{{ bovedas.activa()?.nombre || 'Nota Local' }}</h1>
+            [title]="bovedas.activa()?.nombre || 'Nivora'">
+            <h1>{{ bovedas.activa()?.nombre || 'Nivora' }}</h1>
             @if (bovedas.sinAcceso()) {
               <span class="material-icons btn-boveda-ojo" title="Sin acceso">link_off</span>
             } @else if (bovedas.soloLectura()) {
@@ -90,7 +90,7 @@
         @if (bovedas.soloLectura()) {
           <p class="aviso-lectura">
             <span class="material-icons">visibility</span>
-            Solo lectura — este cuaderno es de otra persona
+            Solo lectura — no tienes permiso de escritura en este cuaderno
           </p>
         } @else {
           <button mat-flat-button color="primary" (click)="nuevo()">

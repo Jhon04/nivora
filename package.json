@@ -1,5 +1,5 @@
 {
-  "name": "nota-local",
+  "name": "nivora",
   "version": "0.0.0",
   "scripts": {
     "ng": "ng",
@@ -45,6 +45,7 @@
     "@tiptap/extension-highlight": "^3.28.0",
     "@tiptap/extension-image": "^3.28.0",
     "@tiptap/extension-placeholder": "^3.28.0",
+    "@tiptap/extension-table": "^3.28.0",
     "@tiptap/extension-task-item": "^3.28.0",
     "@tiptap/extension-task-list": "^3.28.0",
     "@tiptap/extension-text-align": "^3.28.0",

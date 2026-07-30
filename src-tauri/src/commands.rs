@@ -405,10 +405,9 @@ async fn sincronizar_todo(
     }
 
     // Al conectar se decide si la bóveda es editable, y el criterio es la
-    // PROPIEDAD del repositorio (ver `github::puede_escribir`): tu cuaderno en
-    // otro equipo se edita; el que te comparten, no. Mirar solo el permiso de
-    // GitHub no serviría — en un repo privado personal todo colaborador puede
-    // empujar, así que un cuaderno ajeno llegaría editable.
+    // permiso real de GitHub para la bóveda entera, y la PROPIEDAD para el
+    // candado por nota. Un colaborador de un repo personal edita y crea; lo que
+    // no puede tocar son las notas que el dueño haya bloqueado.
     if let Some(u) = &url {
         match github::repo_por_url(&token, u).await {
             Ok(r) => {

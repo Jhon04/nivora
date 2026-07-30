@@ -432,7 +432,7 @@ mod tests {
     use super::*;
     use std::fs;
 
-    const AUTOR: (&str, &str) = ("Nota Local", "nota@local");
+    const AUTOR: (&str, &str) = ("Nivora", "notas@nivora");
 
     /// Un "GitHub" de mentira: un repositorio desnudo en disco. Permite probar
     /// el ciclo completo (dos equipos, push, pull, conflictos) sin red y sin

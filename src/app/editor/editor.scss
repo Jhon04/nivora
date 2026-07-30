@@ -117,6 +117,62 @@
   }
 }
 
+/* Desplegables de fila y de columna.
+   Van en la hoja del COMPONENTE y no en la global aunque el CDK los porte a su
+   contenedor de overlays: el `ng-template` se declara en esta plantilla, así que
+   los nodos llevan el `_ngcontent` de aquí. `.menu-titulos` y `.menu-item` ya
+   son globales; esto es solo lo que les falta. */
+.menu-titulos {
+  min-width: 210px;
+
+  .menu-sep {
+    height: 1px;
+    margin: 4px 2px;
+    background: var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  }
+
+  .menu-item .menu-ico { font-size: 19px; }
+
+  .menu-item.peligro {
+    color: var(--mat-sys-error, #b3261e);
+
+    &:hover { background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 12%, transparent); }
+  }
+}
+
+/* Barra de la tabla: mismo aspecto que la de texto, pero con etiquetas en vez
+   de un glifo, así que las cajas son más anchas. */
+.bubble-tabla {
+  /* Disparadores de los desplegables: icono + nombre + caret. */
+  button.grupo {
+    gap: 5px;
+    padding: 0 6px 0 8px;
+
+    .material-icons { font-size: 16px; }
+    .caret { font-size: 15px; opacity: 0.7; margin-left: -2px; }
+  }
+
+  button {
+    min-width: 0;
+    padding: 0 8px;
+    font-size: 0.78rem;
+    white-space: nowrap;
+
+    &:disabled {
+      opacity: 0.35;
+      cursor: default;
+      background: none;
+    }
+
+    .material-icons { font-size: 16px; }
+
+    &.peligro:hover {
+      background: var(--mat-sys-error, #b3261e);
+      color: #fff;
+    }
+  }
+}
+
 .slash-menu {
   position: fixed;
   z-index: 1000;
@@ -160,6 +216,17 @@
       font-weight: 600;
     }
 
+    /* Casilla rellena con el ámbar del bloque cifrado y el glifo en blanco.
+       Blanco sobre el fondo del menú no se vería en el tema claro; sobre el
+       relleno se lee igual en los dos temas y, de paso, la entrada queda
+       identificada con el mismo color que tendrá el bloque. */
+    .ico.ico-material {
+      border-color: transparent;
+      background: var(--secreto-acento);
+      color: #fff;
+      font-size: 18px;
+    }
+
     .meta {
       display: flex;
       flex-direction: column;
@@ -169,66 +236,5 @@
       .t { font-weight: 600; font-size: 0.9rem; }
       .s { font-size: 0.75rem; opacity: 0.6; }
     }
-  }
-}
-
-/* Bloque secreto: valor cifrado dentro de una nota normal. */
-.bloque-secreto {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 0.5rem 0;
-  padding: 9px 12px;
-  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.16));
-  border-radius: 9px;
-  background: var(--capa-suave);
-  font-size: 0.88rem;
-
-  .secreto-icono {
-    font-size: 19px;
-    opacity: 0.6;
-    flex: 0 0 auto;
-  }
-
-  .secreto-etiqueta {
-    flex: 0 0 auto;
-    font-weight: 600;
-    opacity: 0.85;
-  }
-
-  .secreto-valor {
-    flex: 1 1 auto;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
-    font-size: 0.85rem;
-    /* Que se pueda seleccionar a mano cuando está revelado. */
-    user-select: text;
-  }
-
-  .secreto-acciones {
-    display: flex;
-    gap: 2px;
-    flex: 0 0 auto;
-
-    button {
-      all: unset;
-      cursor: pointer;
-      display: inline-flex;
-      padding: 5px;
-      border-radius: 6px;
-      opacity: 0.65;
-
-      .material-icons { font-size: 17px; }
-
-      &:hover {
-        opacity: 1;
-        background: var(--capa-hover-fuerte);
-      }
-    }
-  }
-
-  &.ProseMirror-selectednode {
-    border-color: var(--mat-sys-primary, #3b82f6);
   }
 }

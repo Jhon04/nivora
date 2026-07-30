@@ -47,7 +47,7 @@ const VERSION: &str = "v1";
 
 /// Texto conocido que se cifra al configurar. Descifrarlo bien es la prueba de
 /// que la contraseña es correcta.
-const TESTIGO: &[u8] = b"nota-local::secretos";
+const TESTIGO: &[u8] = b"nivora::secretos";
 
 /// Tiempo sin usar tras el cual la clave se borra de memoria.
 const INACTIVIDAD: Duration = Duration::from_secs(5 * 60);

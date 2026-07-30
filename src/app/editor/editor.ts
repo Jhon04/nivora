@@ -15,10 +15,15 @@ import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
 import { TextStyle } from '@tiptap/extension-text-style';
+import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
+import { ResolvedPos } from '@tiptap/pm/model';
+import { Selection, TextSelection } from '@tiptap/pm/state';
+import { CellSelection } from '@tiptap/pm/tables';
 import { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { MatDialog } from '@angular/material/dialog';
 import { open } from '@tauri-apps/plugin-dialog';
 import { open as abrirEnSistema } from '@tauri-apps/plugin-shell';
+import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { TiptapBubbleMenuDirective, TiptapEditorDirective } from 'ngx-tiptap';
 import { firstValueFrom } from 'rxjs';
 
@@ -30,10 +35,17 @@ import { CodeBlockCopia } from './code-block-copia';
 import { BlockDrag } from './block-drag';
 import { BloqueLista, TipoLista } from './lista-plana';
 import { ColorAdaptable, ResaltadoAdaptable } from './color-adaptable';
-import { createSlashCommand, EVENTO_IMAGEN, EVENTO_SECRETO, SlashItem } from './slash-command';
+import {
+  createSlashCommand,
+  EVENTO_IMAGEN,
+  EVENTO_SECRETO,
+  EVENTO_SECRETO_ABIERTO,
+  EVENTO_SECRETO_ABRIR,
+  SlashItem,
+} from './slash-command';
 import { PeticionSecreto, Secreto } from './secreto';
 import { SecretosService } from '../core/secretos.service';
-import { SecretoDialog, SecretoResultado } from '../shared/secreto-dialog';
+import { SecretoDatos, SecretoDialog, SecretoResultado } from '../shared/secreto-dialog';
 
 /** Documento Tiptap vacío (un párrafo). */
 const DOC_VACIO: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] };
@@ -74,6 +86,20 @@ function base64ABlob(base64: string, ext: string): Blob {
   return new Blob([bytes], { type: mimeDe(ext) });
 }
 
+/**
+ * Posición resuelta **justo antes** de la celda donde está la selección, que es
+ * lo que espera `CellSelection`. `null` si no se está dentro de una tabla.
+ */
+function celdaDe(seleccion: Selection): ResolvedPos | null {
+  if (seleccion instanceof CellSelection) return seleccion.$anchorCell;
+  const $desde = seleccion.$from;
+  for (let d = $desde.depth; d > 0; d--) {
+    const rol = $desde.node(d).type.spec['tableRole'];
+    if (rol === 'cell' || rol === 'header_cell') return $desde.doc.resolve($desde.before(d));
+  }
+  return null;
+}
+
 interface SlashPos {
   left: number;
   top: number;
@@ -82,7 +108,7 @@ interface SlashPos {
 
 @Component({
   selector: 'app-editor',
-  imports: [TiptapEditorDirective, TiptapBubbleMenuDirective],
+  imports: [TiptapEditorDirective, TiptapBubbleMenuDirective, OverlayModule],
   templateUrl: './editor.html',
   styleUrl: './editor.scss',
 })
@@ -100,6 +126,26 @@ export class EditorComponent implements OnDestroy {
   readonly editable = input(true);
 
   protected readonly bubbleOptions = { placement: 'top' as const };
+  /* Abajo, para no taparse con el menú de texto cuando se selecciona dentro de
+     una celda: ahí se ven los dos, uno a cada lado. */
+  protected readonly tablaOptions = { placement: 'bottom' as const };
+  /**
+   * La barra de tabla sale con el **cursor** dentro, sin tener que seleccionar
+   * nada: las acciones son de fila y columna, no del texto elegido.
+   */
+  protected readonly enTabla = (): boolean => this.editor.isActive('table');
+  /* Desplegables de fila y de columna. Agrupar sus seis acciones deja la barra
+     corta: con todas sueltas ocupaba media pantalla y había que leerlas para
+     distinguir «✕ fila» de «✕ col». */
+  protected readonly menuFila = signal(false);
+  protected readonly menuCol = signal(false);
+  /** Mismas posiciones que los desplegables del toolbar, para que caigan igual. */
+  protected readonly posicionesMenu: ConnectedPosition[] = [
+    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 6 },
+    { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -6 },
+    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 6 },
+    { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -6 },
+  ];
 
   // --- Estado del slash menu (/) ---
   protected readonly slashOpen = signal(false);
@@ -107,6 +153,7 @@ export class EditorComponent implements OnDestroy {
   protected readonly slashIndex = signal(0);
   protected readonly slashPos = signal<SlashPos>({ left: 0, top: 0, arriba: false });
   private slashSelect: ((item: SlashItem) => void) | null = null;
+  private readonly menuSlash = viewChild<ElementRef<HTMLElement>>('menuSlash');
 
   /** URL del original a tamaño completo en el visor (lightbox), o null. */
   protected readonly lightbox = signal<string | null>(null);
@@ -163,6 +210,17 @@ export class EditorComponent implements OnDestroy {
         ResaltadoAdaptable.configure({ multicolor: true }),
         Secreto,
         AssetImage,
+        /* Tabla. `resizable` añade el tirador entre columnas y guarda el ancho
+           en `colwidth`; sin él la tabla reparte a partes iguales y no hay forma
+           de ajustar una columna estrecha (fechas, importes).
+           Ojo: con `resizable` el nodo lo pinta `TableView`, que construye su
+           propio DOM (`div.tableWrapper > table`) e **ignora `HTMLAttributes`**.
+           Por eso los estilos cuelgan de `.tableWrapper` y no de una clase
+           nuestra, que nunca llegaría al elemento. */
+        Table.configure({ resizable: true }),
+        TableRow,
+        TableHeader,
+        TableCell,
         BlockDrag,
         createSlashCommand(() => ({
           onStart: (props) => this.slashStart(props),
@@ -251,13 +309,17 @@ export class EditorComponent implements OnDestroy {
     this.editor.view.dom.addEventListener(EVENTO_IMAGEN, () => void this.elegirImagen());
 
     // El NodeView del bloque secreto no puede inyectar servicios: se le deja
-    // aquí la función de descifrado, que va a Rust (la clave nunca sale de allí).
+    // aquí la función de descifrado, que va a Rust (la clave nunca sale de allí),
+    // y una forma de saber si el candado está abierto — con eso distingue «se
+    // cerró por inactividad» de un error de verdad y ofrece la salida adecuada.
     (this.editor.storage as unknown as Record<string, unknown>)['secreto'] = {
       descifrar: (datos: string) => this.secretos.descifrar(datos),
+      desbloqueado: () => this.secretos.desbloqueado(),
     };
     this.editor.view.dom.addEventListener(EVENTO_SECRETO, (ev) =>
       void this.abrirSecreto((ev as CustomEvent<PeticionSecreto>).detail),
     );
+    this.editor.view.dom.addEventListener(EVENTO_SECRETO_ABRIR, () => void this.desbloquear());
 
     // Cargar contenido solo cuando llega de fuera (abrir otro documento),
     // nunca como eco de la edición en curso: eso reiniciaría el cursor.
@@ -282,6 +344,10 @@ export class EditorComponent implements OnDestroy {
     this.slashItems.set(props.items);
     this.slashIndex.set(0);
     this.slashSelect = props.command;
+    /* Al filtrar, la selección vuelve a la primera entrada: si el usuario había
+       bajado, el menú se quedaba desplazado y la entrada elegida no se veía. */
+    const menu = this.menuSlash()?.nativeElement;
+    if (menu) menu.scrollTop = 0;
 
     const rect = props.clientRect?.();
     if (rect) {
@@ -320,7 +386,25 @@ export class EditorComponent implements OnDestroy {
   protected slashMove(delta: number): void {
     const n = this.slashItems().length;
     if (n === 0) return;
-    this.slashIndex.set((this.slashIndex() + delta + n) % n);
+    const i = (this.slashIndex() + delta + n) % n;
+    this.slashIndex.set(i);
+    this.verEntradaSlash(i);
+  }
+
+  /**
+   * Trae a la vista la entrada elegida con el teclado.
+   *
+   * El menú tiene altura máxima y desborda, así que sin esto se podía seguir
+   * bajando con las flechas hasta una entrada **que no se veía**: se estaba
+   * seleccionando a ciegas.
+   *
+   * No hace falta esperar a que Angular repinte: los botones ya existen y las
+   * flechas solo cambian de sitio la clase `.sel`. Y `block: 'nearest'` desplaza
+   * lo mínimo, así que al recorrer la lista no da saltos ni recentra a cada
+   * paso; al dar la vuelta del último al primero, salta arriba del todo.
+   */
+  private verEntradaSlash(i: number): void {
+    this.menuSlash()?.nativeElement.children[i]?.scrollIntoView({ block: 'nearest' });
   }
 
   protected slashPick(i: number): void {
@@ -351,6 +435,54 @@ export class EditorComponent implements OnDestroy {
   }
   toggleQuote(): void { this.editor.chain().focus().toggleBlockquote().run(); }
   toggleCodeBlock(): void { this.editor.chain().focus().toggleCodeBlock().run(); }
+
+  // --- Tabla ---
+  insertarTabla(): void {
+    this.editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  }
+  filaEncima(): void { this.editor.chain().focus().addRowBefore().run(); }
+  filaDebajo(): void { this.editor.chain().focus().addRowAfter().run(); }
+  quitarFila(): void { this.editor.chain().focus().deleteRow().run(); }
+  colIzquierda(): void { this.editor.chain().focus().addColumnBefore().run(); }
+  colDerecha(): void { this.editor.chain().focus().addColumnAfter().run(); }
+  quitarCol(): void { this.editor.chain().focus().deleteColumn().run(); }
+  /**
+   * Convierte en cabecera —o de vuelta en cuerpo— **la fila donde está el
+   * cursor**.
+   *
+   * No sirve `toggleHeaderRow`: ese comando actúa SIEMPRE sobre la primera fila
+   * de la tabla, esté el cursor donde esté. Con el cursor en la segunda fila se
+   * pulsaba «Cabecera» y lo que cambiaba era la de arriba.
+   *
+   * `toggleHeaderCell` sí respeta la selección, pero con el cursor suelto toca
+   * una sola celda: hay que seleccionar la fila entera antes y devolver después
+   * el cursor a su sitio. Los tipos de celda se cambian con `setNodeMarkup`, que
+   * conserva el tamaño de los nodos, así que las posiciones siguen valiendo.
+   */
+  alternarCabecera(): void {
+    const seleccion = this.editor.state.selection;
+    const $celda = celdaDe(seleccion);
+    if (!$celda) return;
+    const volverA = seleccion.from;
+
+    this.editor
+      .chain()
+      .focus()
+      .command(({ tr, dispatch }) => {
+        if (dispatch) tr.setSelection(CellSelection.rowSelection($celda));
+        return true;
+      })
+      .toggleHeaderCell()
+      .command(({ tr, dispatch }) => {
+        if (dispatch) tr.setSelection(TextSelection.near(tr.doc.resolve(volverA)));
+        return true;
+      })
+      .run();
+  }
+  combinarCeldas(): void { this.editor.chain().focus().mergeOrSplit().run(); }
+  /** Combinar necesita varias celdas elegidas; dividir, una ya combinada. */
+  puedeCombinar(): boolean { return this.editor.can().mergeOrSplit(); }
+  quitarTabla(): void { this.editor.chain().focus().deleteTable().run(); }
   setDivisor(): void { this.editor.chain().focus().setHorizontalRule().run(); }
   setAlineacion(align: 'left' | 'center' | 'right' | 'justify'): void {
     this.editor.chain().focus().setTextAlign(align).run();
@@ -664,6 +796,39 @@ export class EditorComponent implements OnDestroy {
    * El texto en claro vive solo dentro del diálogo: aquí llega el resultado del
    * cifrado, así que nunca entra en el documento ni, por tanto, en disco.
    */
+  /**
+   * Abre el candado de la bóveda desde un bloque cifrado, sin pasar por la
+   * pantalla de cambiar el valor: lo único que quiere el usuario es poder leer
+   * el que ya hay.
+   *
+   * Al terminar avisa a **todos** los bloques de la nota, que estaban diciendo
+   * «Bloqueado» y vuelven solos a su estado normal.
+   */
+  private async desbloquear(): Promise<void> {
+    await this.secretos.cargarEstado().catch(() => undefined);
+    if (this.secretos.desbloqueado()) {
+      // `bubbles`: los bloques escuchan en `document`, porque cuando se montan
+      // la vista del editor todavía no existe.
+      this.editor.view.dom.dispatchEvent(
+        new CustomEvent(EVENTO_SECRETO_ABIERTO, { bubbles: true }),
+      );
+      return;
+    }
+
+    const ref = this.dialog.open<SecretoDialog, SecretoDatos, SecretoResultado>(SecretoDialog, {
+      data: { etiqueta: '', datos: '', soloAbrir: true },
+      autoFocus: 'dialog',
+    });
+    await firstValueFrom(ref.afterClosed());
+    if (this.secretos.desbloqueado()) {
+      // `bubbles`: los bloques escuchan en `document`, porque cuando se montan
+      // la vista del editor todavía no existe.
+      this.editor.view.dom.dispatchEvent(
+        new CustomEvent(EVENTO_SECRETO_ABIERTO, { bubbles: true }),
+      );
+    }
+  }
+
   private async abrirSecreto(peticion: PeticionSecreto): Promise<void> {
     // El estado puede haber cambiado solo (cierre por inactividad), así que se
     // consulta antes de decidir qué pantalla enseñar.

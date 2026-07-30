@@ -1,4 +1,4 @@
-//! Saca los bloques cifrados de una bóveda de Nota Local SIN usar la app.
+//! Saca los bloques cifrados de una bóveda de Nivora SIN usar la app.
 //!
 //!     recuperar <carpeta-de-la-boveda> <contraseña-maestra>
 //!
@@ -57,7 +57,7 @@ fn main() {
 
     // El verificador dice si la contraseña es la buena antes de tocar las notas.
     match descifrar(&clave, config["verificador"].as_str().unwrap()) {
-        Some(t) if t == "nota-local::secretos" => println!("contraseña correcta\n"),
+        Some(t) if t == "nivora::secretos" => println!("contraseña correcta\n"),
         _ => { eprintln!("contraseña incorrecta"); std::process::exit(1); }
     }
 

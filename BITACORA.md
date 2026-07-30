@@ -1,8 +1,8 @@
-# Bitácora — Nota Local
+# Bitácora — Nivora
 
 Un "Notion" local, rápido y sin servidor. **Angular 20 + Tauri (Rust) + SQLite.**
 
-> Última actualización: 2026-07-28
+> Última actualización: 2026-07-29
 
 ---
 
@@ -79,10 +79,10 @@ nota-local/
 │  ├─ github.rs                         # device flow, crear repo, token al llavero
 │  ├─ db.rs                             # SQLite: índice derivado (listado, tags, FTS5)
 │  └─ models.rs                         # Documento, DocumentoResumen, AssetGuardado
-└─ dist/nota-local/browser/             # build de Angular (frontendDist de Tauri)
+└─ dist/nivora/browser/             # build de Angular (frontendDist de Tauri)
 ```
 
-**Workspace de datos:** `~/.local/share/net.adcomp.notalocal/Workspace/`
+**Workspace de datos:** `~/.local/share/pe.pluton.nivora/Workspace/`
 (`notas/<id>.json` + `assets/` + `workspace.db` + `.gitignore` + `backups/ export/`).
 Las notas y los assets son la verdad; `workspace.db` se reconstruye a partir de ellos, así
 que la carpeta se puede sincronizar entre equipos con git o Syncthing. Ver 4.23.
@@ -103,6 +103,233 @@ Bóvedas: `listar_bovedas`, `boveda_activa`, `crear_boveda`, `cambiar_boveda`, `
 ---
 
 ## 4. Lo realizado en esta sesión
+
+### 4.37 Bloque nuevo: tabla
+- `@tiptap/extension-table` 3.28.0 (misma versión que el resto de tiptap): `Table`, `TableRow`,
+  `TableHeader`, `TableCell`. Entrada «Tabla» en el menú «/» que inserta **3×3 con cabecera** — es
+  lo que se quiere casi siempre, y quitarla es un clic mientras que ponerla luego obliga a rehacer
+  la primera fila.
+- **`resizable: true`**: tirador entre columnas, con el ancho guardado en `colwidth`. Sin él la
+  tabla reparte a partes iguales y no hay forma de dejar estrecha una columna de fechas o
+  importes. Necesita `table-layout: fixed`; con `auto` el navegador reparte según el contenido y
+  el tirador no serviría de nada.
+- **GOTCHA — con `resizable` el nodo lo pinta `TableView`**, que construye su propio DOM
+  (`div.tableWrapper > table`) e **ignora `HTMLAttributes`**: la clase que se le pasa en la
+  configuración no llega nunca al elemento. Lo cazó un test que la comprobaba. Los estilos cuelgan
+  de `.tableWrapper`, que es lo que se emite de verdad, y de paso ese envoltorio lleva
+  `overflow-x: auto` para que una tabla ancha se desplace dentro de su caja en vez de ensanchar la
+  nota entera.
+- **Barra propia con su `pluginKey`** (`menuTabla`) y anclada **abajo**: el menú de texto usa la de
+  arriba, así que al seleccionar dentro de una celda se ven los dos sin taparse. Su `shouldShow`
+  es `isActive('table')`, con el **cursor** dentro y sin necesidad de seleccionar, porque las
+  acciones son de fila y de columna, no del texto elegido.
+- **Las seis acciones de fila y columna van en dos desplegables** (CDK Overlay, mismo patrón que
+  los del toolbar). Sueltas ocupaban media barra y había que leerlas para distinguir «✕ fila» de
+  «✕ col»; agrupadas quedan dos botones con nombre e icono, y dentro cada acción se explica sola
+  («Insertar encima de», «Insertar a la izquierda»…). El `ng-template` del overlay va **dentro del
+  mismo bloque** que su `cdkOverlayOrigin`, que en Angular 17+ es un ámbito de plantilla propio.
+- Los estilos de esos menús van en `editor.scss` y no en la hoja global: aunque el CDK los porte a
+  su contenedor de overlays, el `ng-template` se declara en esta plantilla y los nodos llevan el
+  `_ngcontent` del componente. (Justo lo contrario que un NodeView, que crea su DOM a mano y por
+  eso necesita estilos globales — ver 4.32.)
+- Nada que tocar en Rust: una tabla es un nodo normal, así que viaja en el JSON de la nota y
+  `db::extraer_texto` ya recoge sus celdas para el índice FTS. Hay test que lo fija.
+- **BUG — «Cabecera» actuaba sobre la primera fila, no sobre la del cursor.** `toggleHeaderRow` de
+  prosemirror-tables toca **siempre** la primera fila de la tabla, mires donde mires. Se veía así:
+  con el cursor en la cabecera se inserta una fila encima (queda `TD | TH | TD`), se pone cabecera
+  a la fila 0 (`TH | TH | TD`) y al ir a la fila 1 para quitársela… la que la perdía era la 0.
+  El botón mentía sobre lo que hacía.
+- El arreglo usa `toggleHeaderCell`, que **sí** respeta la selección, pero con el cursor suelto
+  toca una única celda: hay que seleccionar la fila entera (`CellSelection.rowSelection`) antes y
+  **devolver el cursor** después, porque seleccionar la fila es un medio del comando y no algo que
+  el usuario haya pedido. Los tipos de celda se cambian con `setNodeMarkup`, que conserva el
+  tamaño de los nodos, así que la posición guardada sigue valiendo tras el cambio.
+- 11 tests: la entrada del menú, filas y columnas, la cabecera, borrar sin llevarse la nota, el
+  texto en el JSON, `colwidth`, que el handle reconoce la tabla como un bloque, y cuatro de la
+  cabecera por fila **contra el componente de verdad** (no contra una copia de su lógica: lo que
+  se prueba es el botón). Comprobado que dos fallan con el `toggleHeaderRow` de antes.
+
+### 4.36 BUG: el handle no seguía al bloque al desplazar
+- **Síntoma:** al desplazar con el ratón sobre un bloque, el ⠿ se quedaba clavado en la pantalla y
+  después desaparecía; había que llevar el ratón a **otro** bloque para recuperarlo.
+- **Eran tres causas encadenadas**, y ninguna se ve leyendo el código de una:
+  1. **Al desplazar no llega ningún `mousemove`** — el documento se mueve, el ratón no. Ahora se
+     escucha `scroll` en `document` con `capture`, porque ese evento **no burbujea**: así vale
+     cualquier contenedor sin nombrarlo. `passive` porque solo se lee.
+  2. **El atajo de «mismo bloque, no recoloco»** (que evita recalcular en cada píxel al recorrer
+     una línea) impedía volver a colocarlo cuando lo que se había movido era el documento. La
+     colocación se extrajo a `situar(forzar)` y el desplazamiento pasa `forzar = true`.
+  3. **`blockAt` devolvía `null` en el hueco ENTRE bloques.** Los párrafos llevan margen y ahí no
+     hay nodo: `posAtCoords` devuelve una posición del documento con `inside === -1`. Esto hacía
+     desaparecer el handle **también sin desplazar**, con solo pasar el ratón por una separación.
+     Ahora se toma el bloque vecino más cercano (`vecinoMasCercano`).
+- `lastX`/`lastY` se sustituyen por `puntero`, con las coordenadas **sin normalizar**: al
+  desplazar hay que rehacer la comprobación de banda, y para eso hacen falta las originales.
+- 4 tests, uno por causa. **Comprobado que cada uno falla al quitar su arreglo** — el tercero se
+  añadió justo porque al desactivar `forzar` no fallaba ninguno de los otros.
+
+### 4.35 BUG: el menú «/» no seguía a la selección del teclado
+- **Síntoma:** el menú tiene `max-height: 320px` y desborda (12 entradas). Bajando con las flechas
+  se podía seguir más allá de lo visible y **seleccionar a ciegas**.
+- `slashMove` trae la entrada elegida a la vista con `scrollIntoView({ block: 'nearest' })`.
+  «Nearest» desplaza lo mínimo: recorrer la lista no da saltos ni recentra a cada paso, y al dar
+  la vuelta del último al primero salta arriba del todo.
+- **No hace falta esperar a que Angular repinte**: los botones ya existen y las flechas solo
+  mueven de sitio la clase `.sel`, así que se puede desplazar en el mismo momento.
+- Al **filtrar** (`slashStart`) la selección vuelve a la primera entrada, así que también se pone
+  `scrollTop = 0`; si no, el menú se quedaba donde el usuario lo había dejado.
+- 4 tests montando el componente con `TestBed`. Uno comprueba **que el menú desborda de verdad**:
+  sin eso los otros tres pasarían sin probar nada.
+- **GOTCHA del test:** al volver a la primera entrada `scrollTop` queda en **4**, no en 0 — es el
+  `padding` del menú, y `block: 'nearest'` desplaza lo mínimo. Hay que medir **si la entrada se ve
+  entera**, no el valor de `scrollTop`.
+- **Icono del bloque cifrado**: `SlashItem` gana `iconoMaterial`, una ligadura de Material Icons
+  que sustituye al emoji. Un emoji **trae su propio color y no hay forma de cambiarlo**: la 🔑
+  salía dorada entre glifos monocromos. La casilla va rellena del ámbar del bloque con el glifo en
+  blanco — blanco sobre el fondo del menú no se vería en el tema claro, y de paso la entrada queda
+  identificada con el color que tendrá el bloque.
+
+### 4.34 BUG: los bloques `atom` no tenían handle de arrastre
+- **Síntoma:** ni la imagen, ni el bloque cifrado, ni la línea horizontal sacaban el ⠿, así que no
+  había forma de moverlos. Llevaba así desde 4.5.
+- **Causa,** en `BlockDragView.blockAt`: un nodo `atom` **no tiene contenido dentro del que
+  resolver una posición**, así que `posAtCoords` devuelve una posición del propio documento
+  (`depth === 0`) en vez de una interior. La función tenía un `if ($pos.depth === 0) return null`
+  y se rendía justo ahí. Los párrafos y las listas nunca lo tocaban porque su posición cae dentro
+  del bloque.
+- **Arreglo:** cuando la profundidad es 0 se usa `posInfo.inside`, que apunta al nodo bajo las
+  coordenadas (verificado: para el bloque cifrado devuelve `{pos: 6, inside: 5}` y
+  `doc.nodeAt(5)` es el `secreto`). Si `inside` estuviera anidado se sube a su bloque de primer
+  nivel con `.before(1)`.
+- **El handle se centra en los bloques bajos.** Iba siempre a `rect.top + 1`, que es lo natural en
+  un párrafo largo, pero una línea horizontal mide 2 px y el handle 24: colgaba sobre el bloque de
+  abajo y parecía el suyo. Ahora, si el bloque es más bajo que el handle, se centra. El alto se
+  lee de `offsetHeight` en vez de fijarlo, para que siga bien si cambia el CSS.
+- 5 tests nuevos (imagen real de la app, bloque cifrado, línea horizontal, el centrado y un
+  arrastre completo). Comprobado que **todos fallan** con el código anterior.
+- **Dos trampas del propio test**, que costaron más que el arreglo:
+  - `pm().querySelector('p:last-of-type')` no devolvía el último párrafo del documento sino el
+    `<p class="secreto-nota">` **de dentro del bloque cifrado**, que va antes en el orden del DOM.
+    Soltar ahí es soltar sobre uno mismo, el código lo rechaza con razón y el test no probaba
+    nada. Se arregla con `:scope > p`.
+  - El PNG de prueba es de 1x1 y carga asíncrono: su rectángulo era de **altura cero** y el
+    puntero no caía sobre nada. Una regla en una hoja no vale — `styles.scss` ya trae
+    `.ProseMirror img { height: auto }` con la misma especificidad y gana la que va después en la
+    cascada. Hay que fijar el tamaño en el propio elemento.
+
+### 4.33 Arrastrar bloques: desplazar la vista sin soltar
+- **El problema:** con una imagen alta, mover un bloque por debajo de ella era **imposible**. El
+  hueco de destino queda fuera de la pantalla y no hay forma de llevar el ratón hasta él, porque
+  para desplazar habría que soltar el botón y eso termina el arrastre.
+- **Dos mecanismos que se complementan, y los dos hacen falta.** La **rueda** es la forma precisa:
+  el usuario decide cuánto avanza y para donde quiere. La **franja de los bordes** sirve para
+  cruzar de largo, pero afinar con ella es incómodo porque la velocidad depende de lo pegado al
+  borde que esté el ratón.
+- La rueda **necesita `passive: false`** en el `addEventListener`; sin eso el navegador ignora el
+  `preventDefault()` y desplaza además por su cuenta, con lo que la vista se movería el doble. Y
+  hay que tomar el control en vez de dejar hacer al navegador: bajo el cursor puede haber
+  cualquier cosa durante el arrastre (la barra de herramientas también desborda) y desplazaría lo
+  que no toca. `deltaY` se normaliza a píxeles, que el sistema puede mandarlo en líneas o páginas.
+- **GOTCHA de los tests:** el indicador es `position: fixed`, así que con líneas de la misma
+  altura el hueco cae en el **mismo píxel de pantalla** aunque el destino haya cambiado. El primer
+  test comprobaba `indicator.style.top` y fallaba teniendo razón: hay que medir **dónde acaba el
+  bloque**, no dónde se pintó la línea.
+- Al acercar el puntero a menos de `BORDE_AUTOSCROLL` (64 px) del borde superior o inferior del
+  contenedor, la vista se desplaza sola. **Rampa cuadrática** hasta `VELOCIDAD_AUTOSCROLL`
+  (14 px/fotograma ≈ 840 px/s): al entrar en la franja apenas se mueve y pegado al borde va
+  rápido. Con velocidad constante o se pasa de largo el destino, o cruzar una imagen grande tarda
+  demasiado.
+- **Hay que guardar la posición del ratón** (`this.raton`). Si se queda quieto en el borde no
+  llegan más `mousemove`, pero el documento sigue moviéndose debajo: la línea azul tiene que
+  recalcularse en cada fotograma con la última posición conocida. De ahí que el pintado del
+  destino saliera de `onDragMove` a `repintarDestino()`.
+- El bucle de `requestAnimationFrame` **vive todo el arrastre** en vez de encenderse y apagarse al
+  entrar y salir de la franja: no hay estado que se quede desincronizado, y un fotograma que no
+  desplaza nada no cuesta nada. Si el contenedor llega al tope, no se repinta (sería trabajo
+  inútil en cada fotograma).
+- El contenedor con scroll **se busca subiendo por el DOM** (`overflowY` auto/scroll y que
+  desborde) en lugar de fijar `.pane-scroll`: así la extensión no queda atada a la plantilla de la
+  app.
+- 8 tests nuevos, haciendo correr el bucle a mano con un espía de `requestAnimationFrame`.
+  Comprobado que **fallan** si se quita cada uno de los dos mecanismos.
+
+### 4.32 Rediseño del bloque cifrado
+- **Forma de `mat-form-field` outlined, en una sola fila**: la etiqueta es el **rótulo flotante
+  montado sobre el borde superior** (13 px) y la llave va **dentro, a la izquierda**, como el
+  prefijo de un campo Material. Antes era un chip + etiqueta + valor en línea; revelar una cadena
+  de conexión larga envolvía el texto y **empujaba los botones**, que cambiaban de sitio justo
+  cuando ibas a pulsarlos. Ahora el valor lleva `flex: 1 1 auto; min-width: 0` y las acciones no
+  se mueven.
+- **El campo no puede tener relleno propio.** El rótulo se apoya a caballo del borde y necesita
+  fondo (`--mat-sys-surface`) para tapar el trozo de línea que si no le cruzaría el texto; si el
+  campo tuviera color, se vería el parche del rótulo por dentro. Por eso desapareció
+  `--secreto-fondo`, y el rótulo va en la raíz del NodeView y no dentro del campo, que recorta con
+  `overflow: hidden` por la barra de cuenta atrás.
+- Fuera el chip de estado: el icono del ojo y la barra ya dicen que está a la vista, y los estados
+  averiados se explican con su mensaje debajo.
+- **Cuatro estados en un solo `data-estado`** (`oculto` / `visible` / `bloqueado` / `error`) y el
+  SCSS los pinta todos. Un único atributo en vez de clases sueltas: así no se puede llegar a
+  combinaciones que no existen (revelado *y* bloqueado a la vez).
+- **La clave cerrada deja de ser un callejón sin salida.** Antes un fallo era un icono de candado
+  parpadeando 1,5 s: el caso corriente —el cierre automático a los 5 minutos— dejaba al usuario
+  sin saber qué pasaba y sin salida desde el bloque. Ahora el NodeView pregunta a
+  `storage.secreto.desbloqueado()` y, si el candado está cerrado, ofrece **Desbloquear**; el resto
+  de errores se cuentan con su mensaje real (por ejemplo el de bóveda sin acceso).
+- `EVENTO_SECRETO_ABRIR` va **aparte** de `EVENTO_SECRETO`: son dos intenciones distintas, y
+  compartirlos obligaba a pasar por la pantalla de escribir un valor nuevo para poder leer el que
+  ya hay. El diálogo gana el modo `soloAbrir`, que se cierra en cuanto la clave está en memoria.
+- **GOTCHA — un NodeView se construye DENTRO de `new EditorView`**, así que `editor.view` todavía
+  no existe y pedirlo ahí revienta al abrir cualquier nota con un secreto. Por eso
+  `EVENTO_SECRETO_ABIERTO` se escucha en `document` y se emite con `bubbles: true`. Lo cazó el
+  test nuevo, no el navegador.
+- **GOTCHA — `.secreto-acciones button` (0,2,1) le ganaba a `.secreto-abrir` (0,2,0)**: el botón de
+  desbloquear salía en los cuatro estados y con el aspecto de los iconos. Se sacó de
+  `.secreto-acciones`. Se vio **renderizando el bloque en Chrome headless**, no leyendo el SCSS.
+- **GOTCHA GORDO — los estilos de un NodeView NO pueden vivir en el SCSS del componente.** Angular
+  sella cada selector con `[_ngcontent-…]` y el NodeView crea su DOM con `document.createElement`,
+  así que sus elementos no llevan el atributo y **ninguna regla los alcanza**: el bloque salía como
+  texto pelado con tres botones. Llevaba así desde que se creó, no lo rompió el rediseño. Se
+  movieron a `src/styles.scss`, junto a los de listas planas y arrastre de bloques, que están ahí
+  por lo mismo. Hay test que lo vigila (`getComputedStyle` de la franja lateral y del fondo);
+  comprobado que **falla** si las reglas se vuelven inalcanzables.
+- La cuenta atrás del revelado es una **animación de CSS** dentro del recuadro del valor: en el
+  borde de la tarjeta se confundía con el ámbar del estado «a la vista». Sin `setInterval` que
+  repinte, y `prefers-reduced-motion` la deja quieta.
+- **Máscara de longitud fija** (10 puntos, no uno por carácter): la longitud de una contraseña es
+  información y enseñarla estrecha la búsqueda a quien mire la pantalla.
+- Color **ámbar propio** (`--secreto-acento` y `--secreto-borde`, en `styles.scss`) y no el
+  primario, que está por toda la interfaz. Borde de 1 px parejo por los cuatro lados. El botón
+  *Desbloquear* sí usa el primario: en el estado bloqueado el ámbar está apagado a propósito y
+  teñía de gris la única acción posible.
+- 8 tests nuevos en `editor/secreto.spec.ts` — antes el NodeView no tenía ninguno. Uno comprueba
+  lo que sostiene todo el diseño: **el valor en claro no aparece en `editor.getJSON()`**.
+
+### 4.31 Identidad: la app se llama Nivora
+- Logo propio (`src-tauri/icons-fuente/logo-nivora.svg`) y juego de iconos completo generado con
+  `tauri icon`: `.ico` de 6 tamaños para Windows, `.icns` para macOS, PNGs y los juegos de
+  Android/iOS.
+- **GOTCHA al rasterizar**: el SVG lleva `stroke-opacity="0"` en la tarjeta, e **ImageMagick no lo
+  respeta** — el icono salía con un borde fino que el diseño no tiene. Se sustituye por
+  `stroke="none"` en la copia de `icons-fuente/` antes de convertir.
+- Renombrado **completo**, aprovechando que aún es desarrollo y no hay datos que preservar:
+  - visible: `productName`, título de la ventana, `<title>`, nombre en la barra lateral, el
+    `user_agent` hacia GitHub, el autor de los commits y la descripción del repositorio;
+  - identidad de datos: `identifier` → **`pe.pluton.nivora`** (de él cuelga `app_data_dir()`),
+    `TESTIGO` → `b"nivora::secretos"`, `SERVICIO_LLAVERO` → `"nivora"`, la clave de
+    preferencias en localStorage y la variable `NIVORA_CLIENT_ID`.
+- **Estos cuatro no se pueden cambiar con datos ya en uso**, y conviene saberlo si algún día se
+  vuelve a renombrar: el `identifier` mueve la carpeta de datos entera (las notas "desaparecen"),
+  el `TESTIGO` deja ilegibles los bloques ya cifrados, y el llavero y las preferencias fuerzan a
+  iniciar sesión otra vez y pierden el tema. Se hizo ahora porque el usuario borró bóveda y notas
+  y cerró sesión a propósito.
+- La carpeta antigua `~/.local/share/net.adcomp.notalocal/` queda huérfana (caché de WebKit,
+  logs): se puede borrar a mano.
+- También el proyecto Angular pasa a llamarse `nivora`. **`outputPath` no está fijado en
+  `angular.json`**: Angular lo deriva del nombre del proyecto, así que renombrarlo mueve el build
+  a `dist/nivora/` y hay que seguirlo en el `frontendDist` de `tauri.conf.json` — si no, Tauri
+  empaquetaría una carpeta que ya no existe. Comprobado que la ruta resuelve.
+- La carpeta del repositorio sigue siendo `nota-local/` (es el directorio de trabajo); renombrarla
+  es cosa de `mv` y de actualizar el remoto si algún día se sube.
 
 ### 4.1 Entorno base
 - Instalado Node 22 (nvm), Rust (rustup), Tauri CLI, Angular 20 + Material.
@@ -354,7 +581,7 @@ Bóvedas: `listar_bovedas`, `boveda_activa`, `crear_boveda`, `cambiar_boveda`, `
   la gente se descarga **no hay dónde guardar un secreto**. Con device flow el usuario teclea un
   código en `github.com/login/device` — sin servidor propio, sin redirección a localhost, sin
   navegador embebido. Es lo que hace `gh auth login`. Requiere registrar una OAuth App y marcar
-  **Enable Device Flow**; el Client ID va en `github.rs` (es público) o en `NOTA_LOCAL_CLIENT_ID`.
+  **Enable Device Flow**; el Client ID va en `github.rs` (es público) o en `NIVORA_CLIENT_ID`.
 - **Ámbito pedido: solo `repo`.** Nada de `user`, `workflow` ni `delete_repo`.
 - **El repositorio se crea SIEMPRE privado y no es configurable.** Antes era una casilla marcada
   por defecto; se quitó porque era el único control de la app donde un clic distraído publica las

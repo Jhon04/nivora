@@ -9,7 +9,7 @@ export interface Preferencias {
   tema: Tema;
 }
 
-const CLAVE = 'nota-local.preferencias';
+const CLAVE = 'nivora.preferencias';
 
 const POR_DEFECTO: Preferencias = {
   sidebarColapsada: false,

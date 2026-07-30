@@ -12,12 +12,114 @@
   <button type="button" (click)="toggleQuote()" [class.activo]="isActive('blockquote')" title="Cita">❝</button>
 </div>
 
+<!-- Barra de la tabla. Va ABAJO y con su propia `pluginKey`: el menú de texto
+     usa la de arriba, así que al seleccionar dentro de una celda se ven los dos
+     sin taparse. Aparece con el cursor dentro, sin necesidad de seleccionar. -->
+<div
+  tiptapBubbleMenu
+  pluginKey="menuTabla"
+  [editor]="editor"
+  [options]="tablaOptions"
+  [shouldShow]="enTabla"
+  class="bubble bubble-tabla">
+  <button
+    type="button"
+    class="grupo"
+    cdkOverlayOrigin
+    #origenFila="cdkOverlayOrigin"
+    (click)="menuFila.set(!menuFila())"
+    title="Acciones de fila">
+    <span class="material-icons">table_rows</span>
+    Fila
+    <span class="material-icons caret">keyboard_arrow_down</span>
+  </button>
+
+  <!-- Dentro del mismo bloque que su origen: en Angular 17+ cada bloque de
+       control de flujo es un ámbito propio. No pinta nada aquí, el overlay va
+       portalado al contenedor del CDK. -->
+  <ng-template
+    cdkConnectedOverlay
+    [cdkConnectedOverlayOrigin]="origenFila"
+    [cdkConnectedOverlayOpen]="menuFila()"
+    [cdkConnectedOverlayPositions]="posicionesMenu"
+    [cdkConnectedOverlayPush]="true"
+    [cdkConnectedOverlayHasBackdrop]="true"
+    cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+    (backdropClick)="menuFila.set(false)"
+    (detach)="menuFila.set(false)">
+    <div class="menu-titulos">
+      <button type="button" class="menu-item" (click)="filaEncima(); menuFila.set(false)">
+        <span class="material-icons menu-ico">arrow_upward</span> Insertar encima de
+      </button>
+      <button type="button" class="menu-item" (click)="filaDebajo(); menuFila.set(false)">
+        <span class="material-icons menu-ico">arrow_downward</span> Insertar debajo de
+      </button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-item peligro" (click)="quitarFila(); menuFila.set(false)">
+        <span class="material-icons menu-ico">delete</span> Borrar
+      </button>
+    </div>
+  </ng-template>
+
+  <button
+    type="button"
+    class="grupo"
+    cdkOverlayOrigin
+    #origenCol="cdkOverlayOrigin"
+    (click)="menuCol.set(!menuCol())"
+    title="Acciones de columna">
+    <span class="material-icons">view_column</span>
+    Columna
+    <span class="material-icons caret">keyboard_arrow_down</span>
+  </button>
+
+  <ng-template
+    cdkConnectedOverlay
+    [cdkConnectedOverlayOrigin]="origenCol"
+    [cdkConnectedOverlayOpen]="menuCol()"
+    [cdkConnectedOverlayPositions]="posicionesMenu"
+    [cdkConnectedOverlayPush]="true"
+    [cdkConnectedOverlayHasBackdrop]="true"
+    cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+    (backdropClick)="menuCol.set(false)"
+    (detach)="menuCol.set(false)">
+    <div class="menu-titulos">
+      <button type="button" class="menu-item" (click)="colIzquierda(); menuCol.set(false)">
+        <span class="material-icons menu-ico">arrow_back</span> Insertar a la izquierda
+      </button>
+      <button type="button" class="menu-item" (click)="colDerecha(); menuCol.set(false)">
+        <span class="material-icons menu-ico">arrow_forward</span> Insertar a la derecha
+      </button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-item peligro" (click)="quitarCol(); menuCol.set(false)">
+        <span class="material-icons menu-ico">delete</span> Borrar
+      </button>
+    </div>
+  </ng-template>
+
+  <span class="sep"></span>
+  <button
+    type="button"
+    (click)="alternarCabecera()"
+    [class.activo]="isActive('tableHeader')"
+    title="Convertir esta fila en cabecera (o de vuelta en cuerpo)">
+    Cabecera
+  </button>
+  <button type="button" (click)="combinarCeldas()" [disabled]="!puedeCombinar()"
+          title="Combinar las celdas seleccionadas o dividir la combinada">⧉</button>
+  <span class="sep"></span>
+  <button type="button" class="peligro" (click)="quitarTabla()" title="Eliminar la tabla entera">
+    <span class="material-icons">delete</span>
+  </button>
+</div>
+
 <!-- Área editable (Tiptap se monta aquí) -->
 <div tiptap [editor]="editor" class="prose"></div>
 
 <!-- Slash menu (/) -->
 @if (slashOpen() && slashItems().length) {
   <div
+    #menuSlash
     class="slash-menu"
     [class.arriba]="slashPos().arriba"
     [style.left.px]="slashPos().left"
@@ -30,7 +132,11 @@
         [class.sel]="i === slashIndex()"
         (mouseenter)="slashIndex.set(i)"
         (click)="slashPick(i)">
-        <span class="ico">{{ item.icon }}</span>
+        @if (item.iconoMaterial; as glifo) {
+          <span class="ico ico-material material-icons">{{ glifo }}</span>
+        } @else {
+          <span class="ico">{{ item.icon }}</span>
+        }
         <span class="meta">
           <span class="t">{{ item.title }}</span>
           <span class="s">{{ item.subtitle }}</span>

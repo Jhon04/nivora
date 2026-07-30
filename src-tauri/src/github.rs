@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Se registra una vez en GitHub → Settings → Developer settings → OAuth Apps →
 /// New OAuth App, y dentro hay que marcar **Enable Device Flow**. En desarrollo
-/// se puede sobrescribir con la variable de entorno `NOTA_LOCAL_CLIENT_ID`.
+/// se puede sobrescribir con la variable de entorno `NIVORA_CLIENT_ID`.
 const CLIENT_ID: &str = "Ov23liH7C3x7BFeEoL5G";
 
 /// Valor del marcador previo a configurar la OAuth App.
@@ -33,11 +33,11 @@ const SIN_CONFIGURAR: &str = "PON_AQUI_TU_CLIENT_ID";
 /// Nada de `user`, `workflow` ni `delete_repo`.
 const AMBITO: &str = "repo";
 
-const SERVICIO_LLAVERO: &str = "nota-local";
+const SERVICIO_LLAVERO: &str = "nivora";
 const CUENTA_LLAVERO: &str = "github";
 
 fn client_id() -> Result<String, String> {
-    validar(&std::env::var("NOTA_LOCAL_CLIENT_ID").unwrap_or_else(|_| CLIENT_ID.to_string()))
+    validar(&std::env::var("NIVORA_CLIENT_ID").unwrap_or_else(|_| CLIENT_ID.to_string()))
 }
 
 /// Separado de `client_id()` para poder probarlo sin tocar el entorno.
@@ -55,7 +55,7 @@ fn validar(id: &str) -> Result<String, String> {
 fn http() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         // GitHub rechaza las peticiones sin User-Agent.
-        .user_agent("nota-local")
+        .user_agent("nivora")
         .build()
         .map_err(|e| e.to_string())
 }
@@ -118,7 +118,7 @@ fn dirs_datos() -> Result<std::path::PathBuf, String> {
             std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".local/share"))
         })
         .or_else(|| std::env::var_os("APPDATA").map(std::path::PathBuf::from))
-        .map(|d| d.join("net.adcomp.notalocal"))
+        .map(|d| d.join("pe.pluton.nivora"))
         .ok_or_else(|| "no se pudo resolver el directorio de datos".to_string())
 }
 
@@ -201,7 +201,7 @@ impl Sesion {
                 u.nombre.clone().unwrap_or_else(|| u.login.clone()),
                 format!("{}@users.noreply.github.com", u.login),
             ),
-            None => ("Nota Local".into(), "notas@nota-local".into()),
+            None => ("Nivora".into(), "notas@nivora".into()),
         }
     }
 }
@@ -464,7 +464,7 @@ fn cuerpo_repo(nombre: &str) -> serde_json::Value {
         // su README, el repositorio tendría una historia que el equipo del
         // usuario no conoce y el primer push sería rechazado.
         "auto_init": false,
-        "description": "Notas de Nota Local",
+        "description": "Notas de Nivora",
     })
 }
 

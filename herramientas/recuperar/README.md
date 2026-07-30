@@ -1,9 +1,9 @@
 # recuperar
 
-Saca los bloques cifrados de una bóveda de Nota Local **sin usar la app**.
+Saca los bloques cifrados de una bóveda de Nivora **sin usar la app**.
 
 ```bash
-cargo run -- ~/.local/share/net.adcomp.notalocal/Workspace "tu contraseña maestra"
+cargo run -- ~/.local/share/pe.pluton.nivora/Workspace "tu contraseña maestra"
 ```
 
 ```
@@ -35,7 +35,7 @@ clave  = Argon2id(contraseña, sal, m=19456 KiB, t=2, p=1, salida=32 bytes)
 bloque = "v1." + base64( nonce[24] || XChaCha20-Poly1305(clave, nonce, claro) )
 ```
 
-El `verificador` es el texto `nota-local::secretos` cifrado con esa clave: sirve
+El `verificador` es el texto `nivora::secretos` cifrado con esa clave: sirve
 para saber si la contraseña es correcta antes de tocar las notas.
 
 ## Por qué esto no debilita nada

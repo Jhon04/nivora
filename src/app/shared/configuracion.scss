@@ -1,13 +1,20 @@
 .cfg {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  /* 224 y no 200: «Cuenta y sincronización» necesita 184 px de texto en negrita
+     —el peso que toma al seleccionarse— más los 20 px de padding del ítem y los
+     20 del `nav`. Con 200 la última letra se salía del recuadro resaltado. */
+  grid-template-columns: 224px 1fr;
+  /* `minmax(0, …)` y no `1fr` a secas: un `1fr` lleva dentro `minmax(auto, 1fr)`
+     y ese `auto` impide que la fila encoja por debajo de su contenido, así que
+     con una sección alta crecía más que el diálogo y se veía cortada. */
+  grid-template-rows: minmax(0, 1fr);
   min-height: 420px;
   max-height: 80vh;
 
   /* En ventanas estrechas la navegación pasa arriba. */
   @media (max-width: 640px) {
     grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
+    grid-template-rows: auto minmax(0, 1fr);
   }
 }
 
@@ -47,11 +54,16 @@
   border-radius: 7px;
   cursor: pointer;
   font-size: 0.85rem;
-  white-space: nowrap;
+  /* Sin `nowrap`: si algún rótulo crece, parte en dos líneas DENTRO de su
+     recuadro en vez de desbordarlo. La columna da de sobra hoy, esto es la red
+     por si mañana no. */
+  min-width: 0;
+  text-align: left;
 
   .material-icons {
     font-size: 19px;
     opacity: 0.75;
+    flex: 0 0 auto;
   }
 
   &:hover {
@@ -62,6 +74,12 @@
     background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 15%, transparent);
     font-weight: 600;
   }
+
+  /* En horizontal las entradas van en fila y se desplazan: ahí sí hay que
+     impedir que partan en dos líneas. */
+  @media (max-width: 640px) {
+    white-space: nowrap;
+  }
 }
 
 .cfg-panel {
@@ -69,6 +87,10 @@
   padding: 22px 26px 26px;
   overflow-y: auto;
   min-width: 0;
+  /* Un ítem de rejilla arranca con `min-height: auto`, o sea que no encoge por
+     debajo de su contenido: el panel crecía hasta pasarse del diálogo y el
+     `overflow-y` de arriba no llegaba a activarse nunca. */
+  min-height: 0;
 
   h3 {
     margin: 0 0 4px;
@@ -108,14 +130,11 @@
 
 .cfg-error,
 .cfg-aviso {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   margin: 0 0 14px;
   padding: 10px 12px;
   border-radius: 8px;
   font-size: 0.82rem;
-  line-height: 1.35;
+  line-height: 1.45;
 }
 
 .cfg-error {
@@ -123,10 +142,20 @@
   background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 12%, transparent);
 }
 
+/* El icono va ABSOLUTO sobre una sangría, y no como hermano dentro de un flex.
+   Con `display: flex` cada trozo del párrafo —cada `<strong>` y cada texto
+   suelto entre ellos— se convertía en un ítem propio y blockificaba: el aviso
+   se leía en columnas estrechas en vez de como un párrafo. Así el texto es
+   flujo normal y da igual el marcado que lleve dentro. */
 .cfg-aviso {
+  position: relative;
+  padding-left: 38px;
   background: color-mix(in srgb, #f59e0b 18%, transparent);
 
-  .material-icons {
+  > .material-icons {
+    position: absolute;
+    left: 11px;
+    top: 9px;
     font-size: 20px;
   }
 }

@@ -9,6 +9,12 @@ export interface SecretoDatos {
   etiqueta: string;
   /** Valor cifrado que se está editando, o '' si es nuevo. */
   datos: string;
+  /**
+   * Solo abrir el candado: no se pide ningún valor y se cierra en cuanto la
+   * clave está en memoria. Es lo que necesita un bloque que solo quiere que le
+   * dejen leer el valor que ya tiene.
+   */
+  soloAbrir?: boolean;
 }
 
 export interface SecretoResultado {
@@ -42,6 +48,7 @@ export class SecretoDialog {
   protected readonly ocupado = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly editando = !!this.datos.datos;
+  protected readonly soloAbrir = !!this.datos.soloAbrir;
   protected readonly minimo = MINIMO_CLAVE;
 
   /**
@@ -73,6 +80,9 @@ export class SecretoDialog {
 
   protected async desbloquear(): Promise<void> {
     await this.con(() => this.secretos.desbloquear(this.contrasena()));
+    // En modo «solo abrir» no hay nada más que preguntar: seguir hasta la
+    // pantalla del valor haría creer que toca escribir uno nuevo.
+    if (this.soloAbrir && this.secretos.desbloqueado()) this.ref.close();
   }
 
   /** Cifra y devuelve el bloque. El texto en claro muere aquí. */
