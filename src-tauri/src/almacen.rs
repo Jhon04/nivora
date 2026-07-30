@@ -15,6 +15,7 @@
 //! obliga a elegir un lado perdiendo todas las notas del otro. Por eso el
 //! `.gitignore` que se escribe en el workspace lo excluye.
 
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -64,6 +65,18 @@ fn es_copia_en_conflicto(nombre: &str) -> bool {
     n.contains("sync-conflict") || n.contains("conflict") || n.contains("conflicto")
 }
 
+/// Nota bloqueada que alguien cambió y ha vuelto a su sitio. Lleva el título
+/// porque un UUID no le dice nada al usuario.
+// `camelCase` porque cruza a TypeScript.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotaRestaurada {
+    pub id: String,
+    pub titulo: String,
+    /// Fichero donde quedó la versión ajena, por si el usuario quiere mirarla.
+    pub copia: Option<String>,
+}
+
 /// Dueño de `Workspace/notas/`. Se registra como estado de Tauri igual que `Db`.
 pub struct Almacen {
     dir: PathBuf,
@@ -91,6 +104,10 @@ impl Almacen {
         // objetos: dos guardados del mismo contenido dan el mismo fichero, así
         // que el diff de git solo muestra lo que cambió de verdad.
         let json = serde_json::to_string_pretty(doc).map_err(|e| e.to_string())?;
+        // git no versiona directorios: si al sincronizar se borra la última nota,
+        // `notas/` desaparece del otro equipo y sin esto el siguiente guardado
+        // fallaría hasta reiniciar.
+        fs::create_dir_all(&self.dir).map_err(|e| e.to_string())?;
         let tmp = self.dir.join(format!(".{id}.tmp"));
         fs::write(&tmp, json).map_err(|e| e.to_string())?;
         fs::rename(&tmp, self.ruta(id)).map_err(|e| e.to_string())?;
@@ -176,6 +193,64 @@ impl Almacen {
             }
         }
         Ok(docs)
+    }
+
+    /// Copia del contenido en disco de las notas **bloqueadas**, para poder
+    /// restaurarlas si llegan modificadas de otro equipo.
+    ///
+    /// Se toma justo antes de traer cambios; ver `restaurar_bloqueadas`.
+    pub fn instantanea_bloqueadas(&self) -> Result<HashMap<String, String>, String> {
+        let mut mapa = HashMap::new();
+        for doc in self.listar_todos()? {
+            if !doc.bloqueada {
+                continue;
+            }
+            let Some(id) = doc.id.clone() else { continue };
+            if let Ok(txt) = fs::read_to_string(self.ruta(&id)) {
+                mapa.insert(id, txt);
+            }
+        }
+        Ok(mapa)
+    }
+
+    /// Devuelve a su sitio las notas bloqueadas que otro equipo haya cambiado o
+    /// borrado. Devuelve los ids restaurados.
+    ///
+    /// Esto es lo que hace que el candado valga de algo. La marca vive dentro de
+    /// un fichero de un repositorio donde el colaborador tiene escritura, así que
+    /// **puede saltársela editando fuera de la app**. Lo que no puede es
+    /// mantener el cambio: en cuanto el dueño sincroniza, su versión vuelve y la
+    /// del otro queda a un lado como copia en conflicto.
+    ///
+    /// Solo debe llamarlo el **dueño** de la bóveda: su copia es la que manda.
+    pub fn restaurar_bloqueadas(
+        &self,
+        previas: &HashMap<String, String>,
+    ) -> Result<Vec<NotaRestaurada>, String> {
+        let mut restauradas = Vec::new();
+        for (id, mio) in previas {
+            let ruta = self.ruta(id);
+            let ahora = fs::read_to_string(&ruta).ok();
+            if ahora.as_deref() == Some(mio.as_str()) {
+                continue; // nadie la tocó
+            }
+            // Lo que venía de fuera no se tira: queda al lado para poder mirarlo.
+            let mut copia = None;
+            if let Some(ajeno) = ahora {
+                let marca = Utc::now().format("%Y%m%d-%H%M%S");
+                let nombre = format!("{id}.conflicto-{marca}.json");
+                fs::write(self.dir.join(&nombre), ajeno).map_err(|e| e.to_string())?;
+                copia = Some(nombre);
+            }
+            fs::create_dir_all(&self.dir).map_err(|e| e.to_string())?;
+            fs::write(&ruta, mio).map_err(|e| e.to_string())?;
+
+            let titulo = serde_json::from_str::<Documento>(mio)
+                .map(|d| d.titulo)
+                .unwrap_or_default();
+            restauradas.push(NotaRestaurada { id: id.clone(), titulo, copia });
+        }
+        Ok(restauradas)
     }
 
     /// Rehace el índice entero a partir de los ficheros. Se llama al arrancar y
@@ -273,6 +348,7 @@ mod tests {
             icono: None,
             cover: None,
             tags: vec![],
+            bloqueada: false,
             contenido: json!({ "type": "doc", "content": [] }),
             creado: None,
             modificado: None,
@@ -485,6 +561,7 @@ mod tests {
             icono: None,
             cover: None,
             tags: vec!["viejo".into()],
+            bloqueada: false,
             contenido: json!({ "type": "doc", "content": [] }),
             creado: Some("2026-01-01T00:00:00Z".into()),
             modificado: Some("2026-01-01T00:00:00Z".into()),
@@ -520,5 +597,120 @@ mod tests {
         let txt = fs::read_to_string(t.0.join(".gitignore")).unwrap();
         assert!(txt.contains("workspace.db"));
         assert!(!txt.contains("\nnotas/"), "las notas SÍ se versionan");
+    }
+}
+
+#[cfg(test)]
+mod tests_bloqueo {
+    use super::*;
+    use serde_json::json;
+
+    fn temporal() -> PathBuf {
+        let d = std::env::temp_dir().join(format!("bloqueo-{}", Uuid::new_v4()));
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    fn doc(titulo: &str, bloqueada: bool) -> Documento {
+        Documento {
+            id: None,
+            titulo: titulo.into(),
+            icono: None,
+            cover: None,
+            tags: vec![],
+            bloqueada,
+            contenido: json!({ "type": "doc", "content": [] }),
+            creado: None,
+            modificado: None,
+        }
+    }
+
+    #[test]
+    fn la_marca_de_bloqueo_sobrevive_al_disco() {
+        let raiz = temporal();
+        let db = Db::abrir(&raiz.join("w.db")).unwrap();
+        let al = Almacen::nuevo(&raiz.join("notas")).unwrap();
+
+        let id = al.guardar(&db, doc("Manual", true)).unwrap().id.unwrap();
+        assert!(al.leer(&id).unwrap().unwrap().bloqueada);
+        // Y también llega al listado, para pintar el candado sin abrir la nota.
+        assert!(db.listar().unwrap()[0].bloqueada);
+
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn una_nota_bloqueada_cambiada_por_otro_vuelve_a_su_sitio() {
+        let raiz = temporal();
+        let db = Db::abrir(&raiz.join("w.db")).unwrap();
+        let al = Almacen::nuevo(&raiz.join("notas")).unwrap();
+        let id = al.guardar(&db, doc("Manual del equipo", true)).unwrap().id.unwrap();
+
+        let previas = al.instantanea_bloqueadas().unwrap();
+
+        // Un colaborador la edita por fuera de la app y su cambio llega al hacer
+        // pull: el candado no se lo impide, git no sabe nada de él.
+        let ruta = raiz.join("notas").join(format!("{id}.json"));
+        let ajena = fs::read_to_string(&ruta).unwrap().replace("Manual del equipo", "Manipulado");
+        fs::write(&ruta, &ajena).unwrap();
+
+        let restauradas = al.restaurar_bloqueadas(&previas).unwrap();
+
+        assert_eq!(restauradas.len(), 1);
+        assert_eq!(restauradas[0].id, id);
+        // El aviso lleva el título: un UUID no le dice nada al usuario.
+        assert_eq!(restauradas[0].titulo, "Manual del equipo");
+        assert!(restauradas[0].copia.is_some(), "y dónde quedó la versión ajena");
+        assert_eq!(al.leer(&id).unwrap().unwrap().titulo, "Manual del equipo");
+
+        // La versión ajena no se tira: queda al lado para poder mirarla.
+        let copia = fs::read_dir(raiz.join("notas"))
+            .unwrap()
+            .flatten()
+            .find(|f| f.file_name().to_string_lossy().contains("conflicto"))
+            .expect("debería quedar la versión del otro");
+        assert!(fs::read_to_string(copia.path()).unwrap().contains("Manipulado"));
+
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn una_nota_bloqueada_borrada_por_otro_reaparece() {
+        let raiz = temporal();
+        let db = Db::abrir(&raiz.join("w.db")).unwrap();
+        let al = Almacen::nuevo(&raiz.join("notas")).unwrap();
+        let id = al.guardar(&db, doc("No borrar", true)).unwrap().id.unwrap();
+        let previas = al.instantanea_bloqueadas().unwrap();
+
+        fs::remove_file(raiz.join("notas").join(format!("{id}.json"))).unwrap();
+
+        let restauradas = al.restaurar_bloqueadas(&previas).unwrap();
+        assert_eq!(restauradas.len(), 1);
+        assert_eq!(restauradas[0].id, id);
+        // Borrada, así que no hay versión ajena que guardar al lado.
+        assert!(restauradas[0].copia.is_none());
+        assert_eq!(al.leer(&id).unwrap().unwrap().titulo, "No borrar");
+
+        let _ = fs::remove_dir_all(&raiz);
+    }
+
+    #[test]
+    fn las_notas_sin_bloquear_no_se_restauran() {
+        let raiz = temporal();
+        let db = Db::abrir(&raiz.join("w.db")).unwrap();
+        let al = Almacen::nuevo(&raiz.join("notas")).unwrap();
+        let id = al.guardar(&db, doc("Trabajo en equipo", false)).unwrap().id.unwrap();
+
+        let previas = al.instantanea_bloqueadas().unwrap();
+        assert!(previas.is_empty(), "solo se vigilan las bloqueadas");
+
+        // El equipo edita libremente lo que no tiene candado.
+        let ruta = raiz.join("notas").join(format!("{id}.json"));
+        fs::write(&ruta, fs::read_to_string(&ruta).unwrap().replace("Trabajo", "Aporte")).unwrap();
+
+        assert!(al.restaurar_bloqueadas(&previas).unwrap().is_empty());
+        assert_eq!(al.leer(&id).unwrap().unwrap().titulo, "Aporte en equipo");
+
+        let _ = fs::remove_dir_all(&raiz);
     }
 }

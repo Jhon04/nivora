@@ -30,7 +30,10 @@ import { CodeBlockCopia } from './code-block-copia';
 import { BlockDrag } from './block-drag';
 import { BloqueLista, TipoLista } from './lista-plana';
 import { ColorAdaptable, ResaltadoAdaptable } from './color-adaptable';
-import { createSlashCommand, EVENTO_IMAGEN, SlashItem } from './slash-command';
+import { createSlashCommand, EVENTO_IMAGEN, EVENTO_SECRETO, SlashItem } from './slash-command';
+import { PeticionSecreto, Secreto } from './secreto';
+import { SecretosService } from '../core/secretos.service';
+import { SecretoDialog, SecretoResultado } from '../shared/secreto-dialog';
 
 /** Documento Tiptap vacío (un párrafo). */
 const DOC_VACIO: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] };
@@ -88,6 +91,13 @@ export class EditorComponent implements OnDestroy {
   readonly content = input<JSONContent | null>(null);
   /** Emite el JSON del documento cada vez que el usuario edita. */
   readonly contentChange = output<JSONContent>();
+  /**
+   * `false` en las bóvedas de solo lectura (cuadernos que alguien comparte
+   * contigo sin permiso de escritura). Se apaga en el propio ProseMirror y no
+   * solo en la UI: si únicamente se ocultaran los botones, seguirían entrando
+   * cambios por teclado, pegado o el menú «/».
+   */
+  readonly editable = input(true);
 
   protected readonly bubbleOptions = { placement: 'top' as const };
 
@@ -113,6 +123,7 @@ export class EditorComponent implements OnDestroy {
   private ultimoEmitido = '';
 
   private readonly assets = inject(AssetsService);
+  private readonly secretos = inject(SecretosService);
   private readonly dialog = inject(MatDialog);
 
   readonly editor: Editor;
@@ -150,6 +161,7 @@ export class EditorComponent implements OnDestroy {
         TextStyle,
         ColorAdaptable,
         ResaltadoAdaptable.configure({ multicolor: true }),
+        Secreto,
         AssetImage,
         BlockDrag,
         createSlashCommand(() => ({
@@ -238,6 +250,15 @@ export class EditorComponent implements OnDestroy {
        extensión de Tiptap. El listener se va con el editor al destruirlo. */
     this.editor.view.dom.addEventListener(EVENTO_IMAGEN, () => void this.elegirImagen());
 
+    // El NodeView del bloque secreto no puede inyectar servicios: se le deja
+    // aquí la función de descifrado, que va a Rust (la clave nunca sale de allí).
+    (this.editor.storage as unknown as Record<string, unknown>)['secreto'] = {
+      descifrar: (datos: string) => this.secretos.descifrar(datos),
+    };
+    this.editor.view.dom.addEventListener(EVENTO_SECRETO, (ev) =>
+      void this.abrirSecreto((ev as CustomEvent<PeticionSecreto>).detail),
+    );
+
     // Cargar contenido solo cuando llega de fuera (abrir otro documento),
     // nunca como eco de la edición en curso: eso reiniciaría el cursor.
     effect(() => {
@@ -250,6 +271,10 @@ export class EditorComponent implements OnDestroy {
         this.editor.commands.setContent(DOC_VACIO, { emitUpdate: false });
       }
     });
+
+    // Bóvedas de solo lectura: se apaga ProseMirror entero. Ocultar botones no
+    // basta — el teclado, el pegado y el menú «/» seguirían editando.
+    effect(() => this.editor.setEditable(this.editable()));
   }
 
   // --- Slash menu ---
@@ -631,6 +656,40 @@ export class EditorComponent implements OnDestroy {
     }
     if (!ruta.startsWith('/')) return null; // solo rutas absolutas locales
     return /\.(png|jpe?g|gif|webp|bmp|svg|avif)$/i.test(ruta) ? ruta : null;
+  }
+
+  /**
+   * Pide el valor del bloque secreto y lo inserta ya cifrado.
+   *
+   * El texto en claro vive solo dentro del diálogo: aquí llega el resultado del
+   * cifrado, así que nunca entra en el documento ni, por tanto, en disco.
+   */
+  private async abrirSecreto(peticion: PeticionSecreto): Promise<void> {
+    // El estado puede haber cambiado solo (cierre por inactividad), así que se
+    // consulta antes de decidir qué pantalla enseñar.
+    await this.secretos.cargarEstado().catch(() => undefined);
+
+    const ref = this.dialog.open<SecretoDialog, unknown, SecretoResultado>(SecretoDialog, {
+      data: { etiqueta: peticion.etiqueta, datos: peticion.datos },
+      autoFocus: 'dialog',
+    });
+    const res = await firstValueFrom(ref.afterClosed());
+    if (!res) return;
+
+    const attrs = { etiqueta: res.etiqueta, datos: res.datos };
+    if (peticion.pos == null) {
+      this.editor.chain().focus().insertContent({ type: 'secreto', attrs }).run();
+    } else {
+      // Reemplazar el nodo entero: `atom`, así que ocupa una sola posición.
+      this.editor
+        .chain()
+        .focus()
+        .command(({ tr }) => {
+          tr.setNodeMarkup(peticion.pos as number, undefined, attrs);
+          return true;
+        })
+        .run();
+    }
   }
 
   ngOnDestroy(): void {

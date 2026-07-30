@@ -7,6 +7,11 @@ export interface Documento {
   cover?: string | null;
   /** Etiquetas del documento (nombres normalizados en minúsculas). */
   tags?: string[];
+  /**
+   * Nota bloqueada: solo el dueño de la bóveda puede cambiarla o borrarla; los
+   * colaboradores la leen y nada más. El veto lo aplica Rust.
+   */
+  bloqueada?: boolean;
   /** Contenido del documento en JSON de Tiptap (`{ type: 'doc', content: [...] }`). */
   contenido: JSONContent;
   creado?: string;
@@ -20,6 +25,8 @@ export interface DocumentoResumen {
   icono?: string | null;
   modificado: string;
   tags?: string[];
+  /** Para pintar el candado en la lista sin abrir la nota. */
+  bloqueada?: boolean;
 }
 
 /** Etiqueta con su número de usos. */

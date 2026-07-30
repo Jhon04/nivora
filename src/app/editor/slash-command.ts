@@ -23,6 +23,8 @@ export interface SlashItem {
  * escucha `editor.ts` sobre el DOM del editor.
  */
 export const EVENTO_IMAGEN = 'pedir-imagen';
+/** Aviso para abrir el diálogo del bloque cifrado (ver `editor/secreto.ts`). */
+export const EVENTO_SECRETO = 'pedir-secreto';
 
 /** Lo que el componente debe implementar para pintar el popup. */
 export type SlashRender = () => {
@@ -93,6 +95,25 @@ export const SLASH_ITEMS: SlashItem[] = [
       // editarlo) lo hace el componente al recibir el aviso.
       editor.chain().focus().deleteRange(range).run();
       editor.view.dom.dispatchEvent(new CustomEvent(EVENTO_IMAGEN, { bubbles: true }));
+    },
+  },
+  {
+    title: 'Bloque cifrado',
+    subtitle: 'Contraseñas, cadenas de conexión…',
+    icon: '🔑',
+    keywords: ['cifrado', 'secreto', 'password', 'contraseña', 'clave', 'credencial', 'token'],
+    insercion: true,
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      // El valor lo pide un diálogo del componente y lo cifra Rust: el texto en
+      // claro no puede pasar por el documento ni un instante, porque el
+      // autoguardado lo escribiría en disco y en un commit.
+      editor.view.dom.dispatchEvent(
+        new CustomEvent(EVENTO_SECRETO, {
+          bubbles: true,
+          detail: { pos: null, etiqueta: '', datos: '' },
+        }),
+      );
     },
   },
 ];

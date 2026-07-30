@@ -1,0 +1,302 @@
+<div class="cfg">
+  <!-- Navegación de secciones -->
+  <nav class="cfg-nav">
+    <h2 class="cfg-titulo">Configuración</h2>
+    <button type="button" class="cfg-nav-item" [class.activo]="seccion() === 'cuenta'" (click)="seccion.set('cuenta')">
+      <span class="material-icons">cloud_sync</span> Cuenta y sincronización
+    </button>
+    <button type="button" class="cfg-nav-item" [class.activo]="seccion() === 'secretos'" (click)="seccion.set('secretos')">
+      <span class="material-icons">key</span> Secretos
+    </button>
+    <button type="button" class="cfg-nav-item" [class.activo]="seccion() === 'apariencia'" (click)="seccion.set('apariencia')">
+      <span class="material-icons">palette</span> Apariencia
+    </button>
+    <button type="button" class="cfg-nav-item" [class.activo]="seccion() === 'workspace'" (click)="seccion.set('workspace')">
+      <span class="material-icons">folder</span> Workspace
+    </button>
+  </nav>
+
+  <section class="cfg-panel">
+    <button type="button" class="cfg-cerrar" (click)="cerrar()" aria-label="Cerrar">
+      <span class="material-icons">close</span>
+    </button>
+
+    @switch (seccion()) {
+      @case ('cuenta') {
+        <h3>Cuenta y sincronización</h3>
+        <p class="cfg-ayuda">
+          Conecta un repositorio de GitHub para tener las mismas notas en todos tus equipos.
+          <!-- Cada bóveda tiene SU repositorio: sin decir cuál se está configurando,
+               es fácil creer que esto vale para todas. -->
+          Esto aplica a la bóveda <strong>{{ bovedas.activa()?.nombre }}</strong>; cada bóveda
+          se sincroniza con su propio repositorio.
+        </p>
+
+        @if (aviso(); as msg) {
+          <p class="cfg-error">{{ msg }}</p>
+        }
+
+        @switch (estado()) {
+          <!-- 1. Sin sesión -->
+          @case ('fuera') {
+            <button mat-flat-button class="cfg-principal" [disabled]="ocupado()" (click)="entrar()">
+              <span class="material-icons">login</span> Iniciar sesión con GitHub
+            </button>
+            <p class="cfg-nota">
+              Solo se pide permiso sobre repositorios. La contraseña la escribes en GitHub,
+              nunca aquí.
+            </p>
+          }
+
+          <!-- 2. Esperando la aprobación en el navegador -->
+          @case ('esperando') {
+            <div class="cfg-codigo">
+              <p>Escribe este código en GitHub:</p>
+              <strong class="cfg-codigo-valor">{{ codigo()?.codigoUsuario }}</strong>
+              <div class="cfg-codigo-botones">
+                <button mat-stroked-button (click)="copiarCodigo()">
+                  <span class="material-icons">content_copy</span>
+                  {{ copiado() ? '¡Copiado!' : 'Copiar' }}
+                </button>
+                <button mat-flat-button (click)="abrirGitHub()">
+                  <span class="material-icons">open_in_new</span> Abrir GitHub
+                </button>
+              </div>
+              <p class="cfg-nota">Esperando a que lo apruebes…</p>
+            </div>
+          }
+
+          <!-- 3. Con sesión, sin repositorio: los DOS caminos -->
+          @case ('dentro') {
+            <div class="cfg-usuario">
+              @if (sincro.usuario()?.avatar; as av) {
+                <img class="cfg-avatar" [src]="av" alt="" />
+              }
+              <div>
+                <strong>{{ sincro.usuario()?.nombre || sincro.usuario()?.login }}</strong>
+                <span class="cfg-login">&#64;{{ sincro.usuario()?.login }}</span>
+              </div>
+              <button mat-stroked-button class="cfg-salir" (click)="salir()">Cerrar sesión</button>
+            </div>
+
+            <div class="cfg-opciones">
+              <button type="button" class="cfg-opcion" (click)="irACrear()">
+                <span class="material-icons">add_circle</span>
+                <span class="cfg-opcion-txt">
+                  <strong>Crear un repositorio</strong>
+                  <small>Este equipo ya tiene tus notas y quieres subirlas</small>
+                </span>
+              </button>
+              <button type="button" class="cfg-opcion" (click)="irAElegir()">
+                <span class="material-icons">cloud_download</span>
+                <span class="cfg-opcion-txt">
+                  <strong>Conectar con uno existente</strong>
+                  <small>Ya tienes tus notas en otro equipo y las quieres aquí</small>
+                </span>
+              </button>
+            </div>
+          }
+
+          <!-- 3a. Crear -->
+          @case ('creando') {
+            <label class="cfg-campo">
+              Nombre del repositorio
+              <input type="text" [ngModel]="nombreRepo()" (ngModelChange)="nombreRepo.set($event)" />
+            </label>
+            <p class="cfg-privado">
+              <span class="material-icons">lock</span>
+              Se creará <strong>privado</strong>: solo tú y quien invites podréis verlo.
+            </p>
+            <div class="cfg-acciones">
+              <button mat-stroked-button [disabled]="ocupado()" (click)="volver()">Atrás</button>
+              <button mat-flat-button [disabled]="ocupado() || !nombreRepo().trim()" (click)="crear()">
+                {{ ocupado() ? 'Creando y subiendo…' : 'Crear y subir mis notas' }}
+              </button>
+            </div>
+          }
+
+          <!-- 3b. Elegir uno existente -->
+          @case ('eligiendo') {
+            @if (cargandoRepos()) {
+              <p class="cfg-nota">Cargando tus repositorios…</p>
+            } @else if (!repos().length) {
+              <p class="cfg-nota">
+                No tienes repositorios todavía. Vuelve atrás y crea uno en el equipo que ya
+                tenga tus notas.
+              </p>
+            } @else {
+              <ul class="cfg-repos">
+                @for (r of repos(); track r.completo) {
+                  <li>
+                    <button type="button" class="cfg-repo" [disabled]="ocupado()" (click)="conectar(r)">
+                      <span class="material-icons">{{ r.privado ? 'lock' : 'public' }}</span>
+                      <span>{{ r.completo }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            }
+            <div class="cfg-acciones">
+              <button mat-stroked-button [disabled]="ocupado()" (click)="volver()">Atrás</button>
+            </div>
+          }
+
+          <!-- 4. Ya sincronizando -->
+          @case ('conectado') {
+            <div class="cfg-usuario">
+              @if (sincro.usuario()?.avatar; as av) {
+                <img class="cfg-avatar" [src]="av" alt="" />
+              }
+              <div>
+                <strong>{{ repoCorto() }}</strong>
+                <span class="cfg-login">Última sincronización: {{ ultimaSincro() }}</span>
+              </div>
+            </div>
+
+            @if (sincro.restauradas().length) {
+              <p class="cfg-aviso">
+                <span class="material-icons">lock_reset</span>
+                {{ sincro.restauradas().length }} nota(s) bloqueada(s) se cambiaron desde fuera
+                de la app y se han devuelto a su sitio. La versión ajena quedó guardada al lado.
+              </p>
+            }
+
+            @if (sincro.conflictos().length) {
+              <p class="cfg-aviso">
+                <span class="material-icons">merge_type</span>
+                {{ sincro.conflictos().length }} nota(s) se editaron en dos equipos a la vez. Se
+                guardó la más reciente y la otra versión quedó al lado, en la carpeta de notas.
+              </p>
+            }
+
+            <div class="cfg-acciones">
+              <button mat-flat-button [disabled]="ocupado() || sincro.sincronizando()" (click)="sincronizarAhora()">
+                <span class="material-icons">sync</span>
+                {{ ocupado() || sincro.sincronizando() ? 'Sincronizando…' : 'Sincronizar ahora' }}
+              </button>
+              <button mat-stroked-button [disabled]="ocupado()" (click)="desconectar()">Desconectar</button>
+              <button mat-stroked-button [disabled]="ocupado()" (click)="salir()">Cerrar sesión</button>
+            </div>
+            <p class="cfg-nota">
+              Se sincroniza sola: al abrir la app y poco después de cada cambio.
+            </p>
+          }
+        }
+      }
+
+      @case ('secretos') {
+        <h3>Bloques cifrados</h3>
+        <p class="cfg-ayuda">
+          La contraseña maestra de <strong>{{ bovedas.activa()?.nombre }}</strong> cifra los
+          bloques secretos de sus notas. No se guarda en ningún sitio: se teclea, se usa y se
+          olvida.
+        </p>
+
+        @if (aviso(); as msg) {
+          <p class="cfg-error">{{ msg }}</p>
+        }
+
+        @if (!secretos.configurado()) {
+          <p class="cfg-nota">
+            Esta bóveda todavía no tiene contraseña maestra. Se pide al crear el primer bloque
+            cifrado (menú «/» → Bloque cifrado).
+          </p>
+        } @else {
+          <dl class="cfg-datos">
+            <dt>Estado</dt>
+            <dd>
+              {{ secretos.desbloqueado() ? 'Desbloqueado' : 'Bloqueado' }}
+              @if (secretos.desbloqueado()) {
+                <button mat-stroked-button class="cfg-mini" (click)="bloquearSecretos()">
+                  Bloquear ahora
+                </button>
+              }
+            </dd>
+          </dl>
+          <p class="cfg-nota">Se bloquea solo tras 5 minutos sin usarlo.</p>
+
+          <h4 class="cfg-sub">Cambiar la contraseña maestra</h4>
+          <!-- Sin esto, alguien puede creer que rotar la clave le quita el acceso
+               a quien se fue del equipo, y no es así. -->
+          <p class="cfg-aviso">
+            <span class="material-icons">warning</span>
+            Cambiarla recifra todos los bloques, pero <strong>no le quita a nadie lo que ya
+            vio</strong>, ni el clon del repositorio que pueda tener con el cifrado viejo. Si
+            alguien deja el equipo: quítale el acceso en GitHub, <strong>cambia las credenciales
+            de verdad</strong> y luego rota esta contraseña.
+          </p>
+
+          <label class="cfg-campo">
+            Contraseña actual
+            <input type="password" autocomplete="current-password"
+                   [ngModel]="claveActual()" (ngModelChange)="claveActual.set($event)" />
+          </label>
+          <label class="cfg-campo">
+            Contraseña nueva
+            <input type="password" autocomplete="new-password"
+                   [ngModel]="claveNueva()" (ngModelChange)="claveNueva.set($event)" />
+          </label>
+          <label class="cfg-campo">
+            Repite la nueva
+            <input type="password" autocomplete="new-password"
+                   [ngModel]="claveRepetir()" (ngModelChange)="claveRepetir.set($event)" />
+            <small>Mínimo {{ minimo }} caracteres. Tendrás que pasársela a tu equipo.</small>
+          </label>
+
+          @if (rotadas(); as n) {
+            <p class="cfg-nota">
+              Listo: {{ n }} nota(s) recifrada(s). Sincroniza para que llegue a los demás equipos.
+            </p>
+          }
+
+          <div class="cfg-acciones">
+            <button mat-flat-button
+                    [disabled]="rotando() || !claveActual() || !claveNueva()"
+                    (click)="rotarClave()">
+              {{ rotando() ? 'Recifrando…' : 'Cambiar y recifrar' }}
+            </button>
+          </div>
+        }
+      }
+
+      @case ('apariencia') {
+        <h3>Apariencia</h3>
+        <p class="cfg-ayuda">Tema de la interfaz.</p>
+        <div class="cfg-temas">
+          <button type="button" class="cfg-tema" [class.activo]="tema.tema() === 'claro'" (click)="tema.fijar('claro')">
+            <span class="material-icons">light_mode</span> Claro
+          </button>
+          <button type="button" class="cfg-tema" [class.activo]="tema.tema() === 'oscuro'" (click)="tema.fijar('oscuro')">
+            <span class="material-icons">dark_mode</span> Oscuro
+          </button>
+          <button type="button" class="cfg-tema" [class.activo]="tema.tema() === 'sistema'" (click)="tema.fijar('sistema')">
+            <span class="material-icons">brightness_auto</span> El del sistema
+          </button>
+        </div>
+      }
+
+      @case ('workspace') {
+        <h3>Workspace</h3>
+        <p class="cfg-ayuda">
+          Cada nota es un fichero <code>notas/&lt;id&gt;.json</code>. La base de datos es solo un
+          índice: se reconstruye sola y por eso no se sincroniza.
+        </p>
+        <dl class="cfg-datos">
+          <dt>Bóveda abierta</dt>
+          <dd>{{ bovedas.activa()?.nombre }}</dd>
+          <dt>Carpeta</dt>
+          <dd>{{ bovedas.activa()?.ruta }}</dd>
+          @if (estadoRepo(); as e) {
+            <dt>Notas sin subir</dt>
+            <dd>{{ e.pendientes }}</dd>
+            <dt>Repositorio</dt>
+            <dd>{{ e.remoto || 'sin conectar' }}</dd>
+          }
+        </dl>
+        <p class="cfg-nota">
+          Se cambia de bóveda desde el nombre, arriba en la barra lateral.
+        </p>
+      }
+    }
+  </section>
+</div>

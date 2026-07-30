@@ -11,18 +11,92 @@
           <span class="material-icons">menu</span>
         </button>
         @if (!sidebarColapsada()) {
-          <h1>Nota Local</h1>
+          <!-- Selector de bóveda: es el "dónde estoy" de la app. -->
+          <button
+            type="button"
+            class="btn-boveda"
+            cdkOverlayOrigin
+            #origenBovedas="cdkOverlayOrigin"
+            [disabled]="cambiandoBoveda()"
+            (click)="menuBovedas.set(!menuBovedas())"
+            [title]="bovedas.activa()?.nombre || 'Nota Local'">
+            <h1>{{ bovedas.activa()?.nombre || 'Nota Local' }}</h1>
+            @if (bovedas.sinAcceso()) {
+              <span class="material-icons btn-boveda-ojo" title="Sin acceso">link_off</span>
+            } @else if (bovedas.soloLectura()) {
+              <span class="material-icons btn-boveda-ojo" title="Solo lectura">visibility</span>
+            }
+            <span class="material-icons btn-boveda-caret">expand_more</span>
+          </button>
+
+          <!-- Dentro del mismo @if que el botón: en Angular 17+ cada bloque de
+               control de flujo es un ámbito propio y `origenBovedas` no se vería
+               desde fuera. No pinta nada aquí (el overlay va portalado). -->
+          <ng-template
+            cdkConnectedOverlay
+            [cdkConnectedOverlayOrigin]="origenBovedas"
+            [cdkConnectedOverlayOpen]="menuBovedas()"
+            [cdkConnectedOverlayPositions]="posicionesMenu"
+            [cdkConnectedOverlayPush]="true"
+            [cdkConnectedOverlayHasBackdrop]="true"
+            cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+            (backdropClick)="menuBovedas.set(false)"
+            (detach)="menuBovedas.set(false)">
+            <div class="menu-titulos menu-bovedas">
+              @for (b of bovedas.lista(); track b.id) {
+                <button
+                  type="button"
+                  class="menu-item"
+                  [class.activo]="b.id === bovedas.activa()?.id"
+                  (click)="cambiarBoveda(b.id)">
+                  <span class="material-icons menu-ico">
+                    {{ b.id === bovedas.activa()?.id ? 'check' : 'folder' }}
+                  </span>
+                  {{ b.nombre }}
+                  @if (b.sinAcceso) {
+                    <span class="material-icons menu-ojo" title="Sin acceso">link_off</span>
+                  } @else if (b.soloLectura) {
+                    <span class="material-icons menu-ojo" title="Solo lectura">visibility</span>
+                  }
+                </button>
+              }
+              <div class="menu-sep"></div>
+              <!-- Crear se hace aquí mismo: abrir un diálogo solo para escribir
+                   un nombre sería más ceremonia que la propia acción. -->
+              <form class="menu-nueva" (submit)="crearBoveda(); $event.preventDefault()">
+                <input
+                  type="text"
+                  [ngModel]="nombreBovedaNueva()"
+                  (ngModelChange)="nombreBovedaNueva.set($event)"
+                  name="nombreBoveda"
+                  placeholder="Nueva bóveda…"
+                  aria-label="Nombre de la bóveda nueva" />
+                <button type="submit" [disabled]="!nombreBovedaNueva().trim()" aria-label="Crear bóveda">
+                  <span class="material-icons">add</span>
+                </button>
+              </form>
+            </div>
+          </ng-template>
         }
       </div>
 
       @if (sidebarColapsada()) {
-        <button type="button" class="ico-btn" (click)="nuevo()" title="Nuevo documento">
-          <span class="material-icons">add</span>
-        </button>
+        @if (!bovedas.soloLectura()) {
+          <button type="button" class="ico-btn" (click)="nuevo()" title="Nuevo documento">
+            <span class="material-icons">add</span>
+          </button>
+        }
       } @else {
-        <button mat-flat-button color="primary" (click)="nuevo()">
-          <mat-icon>add</mat-icon> Nuevo
-        </button>
+        @if (bovedas.soloLectura()) {
+          <p class="aviso-lectura">
+            <span class="material-icons">visibility</span>
+            Solo lectura — este cuaderno es de otra persona
+          </p>
+        } @else {
+          <button mat-flat-button color="primary" (click)="nuevo()">
+            <mat-icon>add</mat-icon> Nuevo
+          </button>
+        }
 
         <div class="buscador">
           <span class="material-icons">search</span>
@@ -41,7 +115,7 @@
       }
     </div>
 
-    <!-- Zona con scroll propio: así el pie (tema) queda siempre visible. -->
+    <!-- Zona con scroll propio: así el pie (ajustes) queda siempre visible. -->
     <div class="side-lista">
     @if (sidebarColapsada()) {
       <!-- Vista colapsada: solo el icono de cada documento -->
@@ -109,14 +183,21 @@
         <mat-nav-list>
           @for (d of documentosVisibles(); track d.id) {
             <a mat-list-item (click)="abrir(d.id)" [class.sel]="actual()?.id === d.id">
-              <span matListItemTitle>{{ d.icono || '📄' }} {{ d.titulo || 'Sin título' }}</span>
-              <button
-                mat-icon-button
-                matListItemMeta
-                (click)="eliminar(d.id, $event)"
-                aria-label="Eliminar documento">
-                <mat-icon>delete</mat-icon>
-              </button>
+              <span matListItemTitle>
+                {{ d.icono || '📄' }} {{ d.titulo || 'Sin título' }}
+                @if (d.bloqueada) {
+                  <span class="material-icons candado-mini" title="Bloqueada">lock</span>
+                }
+              </span>
+              @if (!bovedas.soloLectura()) {
+                <button
+                  mat-icon-button
+                  matListItemMeta
+                  (click)="eliminar(d.id, $event)"
+                  aria-label="Eliminar documento">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              }
             </a>
           }
         </mat-nav-list>
@@ -124,48 +205,78 @@
     }
     </div>
 
-    <!-- Pie: selector de tema (claro / oscuro / el del sistema). -->
+    <!-- Pie: configuración (el tema vive dentro, en «Apariencia»). -->
     <div class="side-pie">
       <button
         type="button"
-        class="btn-tema"
-        cdkOverlayOrigin
-        #origenTema="cdkOverlayOrigin"
-        (click)="menuTema.set(!menuTema())"
-        [title]="'Tema: ' + tema.tema()"
-        aria-label="Cambiar tema">
-        <span class="material-icons">{{ iconoTema() }}</span>
+        class="btn-ajustes"
+        (click)="abrirConfiguracion()"
+        title="Configuración"
+        aria-label="Configuración">
+        <span class="material-icons">settings</span>
         @if (!sidebarColapsada()) {
-          <span class="btn-tema-txt">Tema</span>
+          <span class="btn-ajustes-txt">Ajustes</span>
+        }
+        @if (sincro.sincronizando()) {
+          <span class="punto-sincro" title="Sincronizando…"></span>
         }
       </button>
     </div>
-
-    <ng-template
-      cdkConnectedOverlay
-      [cdkConnectedOverlayOrigin]="origenTema"
-      [cdkConnectedOverlayOpen]="menuTema()"
-      [cdkConnectedOverlayPositions]="posicionesMenu"
-      [cdkConnectedOverlayPush]="true"
-      [cdkConnectedOverlayHasBackdrop]="true"
-      cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
-      (backdropClick)="menuTema.set(false)"
-      (detach)="menuTema.set(false)">
-      <div class="menu-titulos">
-        <button type="button" class="menu-item" [class.activo]="tema.tema() === 'claro'" (click)="tema.fijar('claro'); menuTema.set(false)">
-          <span class="material-icons menu-ico">light_mode</span> Claro
-        </button>
-        <button type="button" class="menu-item" [class.activo]="tema.tema() === 'oscuro'" (click)="tema.fijar('oscuro'); menuTema.set(false)">
-          <span class="material-icons menu-ico">dark_mode</span> Oscuro
-        </button>
-        <button type="button" class="menu-item" [class.activo]="tema.tema() === 'sistema'" (click)="tema.fijar('sistema'); menuTema.set(false)">
-          <span class="material-icons menu-ico">brightness_auto</span> El del sistema
-        </button>
-      </div>
-    </ng-template>
   </aside>
 
   <main class="pane">
+    <!-- Te han quitado el acceso al repositorio (o lo han borrado/renombrado).
+         La bóveda NO se borra sola: puede tener notas tuyas, y borrar ficheros
+         porque un tercero pulsó algo en GitHub sería una puerta trasera. -->
+    @if (bovedas.sinAcceso()) {
+      <div class="aviso-sin-acceso">
+        <span class="material-icons">link_off</span>
+        <div class="aviso-restauradas-txt">
+          <strong>Ya no tienes acceso a este repositorio</strong>
+          <span>
+            «{{ bovedas.activa()?.nombre }}» se queda solo en este equipo y ha dejado de
+            sincronizarse. Sus bloques cifrados tampoco se pueden abrir desde la app.
+          </span>
+        </div>
+        <div class="aviso-sin-acceso-botones">
+          <button mat-stroked-button (click)="reintentarAcceso()">Volver a comprobar</button>
+          <button mat-stroked-button [disabled]="cambiandoBoveda()" (click)="quitarBoveda()">
+            Quitar bóveda
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- Alguien cambió una nota bloqueada y tu copia la ha devuelto a su sitio.
+         Va aquí y no solo en Ajustes: es algo que quieres enterarte sin ir a
+         buscarlo. -->
+    @if (sincro.restauradas(); as tocadas) {
+      @if (tocadas.length) {
+        <div class="aviso-restauradas">
+          <span class="material-icons">lock_reset</span>
+          <div class="aviso-restauradas-txt">
+            <strong>
+              {{ tocadas.length === 1
+                  ? 'Se restauró una nota bloqueada'
+                  : 'Se restauraron ' + tocadas.length + ' notas bloqueadas' }}
+            </strong>
+            <span>
+              Alguien las cambió desde fuera de la app. Tu versión ha vuelto a su sitio y la suya
+              quedó guardada al lado, en la carpeta de notas.
+            </span>
+            <span class="aviso-restauradas-lista">
+              @for (n of tocadas; track n.id) {
+                <em>{{ n.titulo || 'Sin título' }}</em>
+              }
+            </span>
+          </div>
+          <button type="button" (click)="descartarRestauradas()" aria-label="Descartar aviso">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      }
+    }
+
     @if (actual(); as doc) {
       <!-- Barra fija arriba: una sola fila; si no cabe, scroll horizontal
            (rueda o arrastrando con el ratón) en vez de saltar de línea. -->
@@ -474,6 +585,21 @@
           <span class="material-icons">image</span> Insertar
         </button>
 
+        <!-- El candado solo lo mueve el dueño de la bóveda. Rust lo comprueba
+             igualmente: esto es la comodidad, no la defensa. -->
+        @if (bovedas.soyDueno() && !bovedas.soloLectura()) {
+          <button
+            type="button"
+            class="tb-btn"
+            [class.activo]="actual()?.bloqueada"
+            (click)="alternarBloqueo()"
+            [title]="actual()?.bloqueada
+              ? 'Bloqueada: los colaboradores solo pueden leerla'
+              : 'Bloquear: que los colaboradores no puedan cambiarla'">
+            <span class="material-icons">{{ actual()?.bloqueada ? 'lock' : 'lock_open' }}</span>
+          </button>
+        }
+
         <div class="estado-guardado" [attr.data-estado]="estadoGuardado()" title="Guardado automático (Ctrl+S para forzar)">
           @switch (estadoGuardado()) {
             @case ('guardando') { <span class="material-icons girando">sync</span> Guardando… }
@@ -512,15 +638,17 @@
           }
 
           <div class="doc-acciones">
-            @if (!doc.icono) {
-              <button type="button" class="mini-btn" (click)="toggleIcono()">
-                <span class="material-icons">mood</span> Agregar icono
-              </button>
-            }
-            @if (!doc.cover) {
-              <button type="button" class="mini-btn" (click)="elegirPortada()">
-                <span class="material-icons">image</span> Agregar portada
-              </button>
+            @if (puedeEditar()) {
+              @if (!doc.icono) {
+                <button type="button" class="mini-btn" (click)="toggleIcono()">
+                  <span class="material-icons">mood</span> Agregar icono
+                </button>
+              }
+              @if (!doc.cover) {
+                <button type="button" class="mini-btn" (click)="elegirPortada()">
+                  <span class="material-icons">image</span> Agregar portada
+                </button>
+              }
             }
           </div>
 
@@ -532,10 +660,18 @@
           }
         </div>
 
+        @if (!puedeEditar() && !bovedas.soloLectura()) {
+          <p class="aviso-lectura aviso-nota">
+            <span class="material-icons">lock</span>
+            Nota bloqueada por quien comparte la bóveda: puedes leerla, pero no cambiarla.
+          </p>
+        }
+
         <input
           class="titulo"
           [ngModel]="doc.titulo"
           (ngModelChange)="onTitulo($event)"
+          [readonly]="!puedeEditar()"
           placeholder="Sin título" />
 
         <!-- Etiquetas del documento -->
@@ -543,7 +679,9 @@
           @for (t of doc.tags ?? []; track t) {
             <span class="chip-tag" [style.background]="bgTag(t)" [style.color]="fgTag(t)">
               {{ t }}
-              <button type="button" class="chip-x" (click)="quitarEtiqueta(t)" aria-label="Quitar etiqueta">×</button>
+              @if (puedeEditar()) {
+                <button type="button" class="chip-x" (click)="quitarEtiqueta(t)" aria-label="Quitar etiqueta">×</button>
+              }
             </span>
           }
           <input
@@ -564,7 +702,11 @@
           <p class="error">⚠️ {{ err }}</p>
         }
 
-        <app-editor #ed [content]="doc.contenido" (contentChange)="onContenido($event)" />
+        <app-editor
+          #ed
+          [content]="doc.contenido"
+          [editable]="puedeEditar()"
+          (contentChange)="onContenido($event)" />
       </div>
       </div>
     } @else {

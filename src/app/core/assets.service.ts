@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { invoke } from '@tauri-apps/api/core';
-import { appDataDir, join } from '@tauri-apps/api/path';
+import { join } from '@tauri-apps/api/path';
 
 import { setBaseAssets } from './asset-path';
 
@@ -22,11 +22,18 @@ export interface ImagenLeida {
 
 @Injectable({ providedIn: 'root' })
 export class AssetsService {
-  /** Fija la carpeta base de assets (Workspace/assets) para resolver nombres
-   *  relativos al mostrarlos. Llamar una vez al iniciar la app. */
+  /**
+   * Fija la carpeta base de assets para resolver los nombres relativos al
+   * mostrarlos. Hay que llamarla al iniciar la app **y cada vez que se cambia de
+   * bóveda**: cada bóveda tiene su propio `assets/`, así que si esto no se
+   * rehace, las imágenes de la bóveda nueva se buscarían en la anterior.
+   *
+   * La ruta la da Rust (dueño del registro de bóvedas) en vez de componerla
+   * aquí: con `appDataDir() + 'Workspace'` solo funcionaría la bóveda original.
+   */
   async iniciar(): Promise<void> {
-    const base = await join(await appDataDir(), 'Workspace', 'assets');
-    setBaseAssets(base);
+    const boveda = await invoke<{ ruta: string }>('boveda_activa');
+    setBaseAssets(await join(boveda.ruta, 'assets'));
   }
 
   /** Guarda un asset a partir de sus bytes (base64). */

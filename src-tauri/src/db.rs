@@ -19,7 +19,8 @@ CREATE TABLE IF NOT EXISTS document (
     cover       TEXT,
     contenido   TEXT NOT NULL DEFAULT '[]',
     creado      TEXT NOT NULL,
-    modificado  TEXT NOT NULL
+    modificado  TEXT NOT NULL,
+    bloqueada   INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS tag (
@@ -143,11 +144,12 @@ fn indexar_en(conn: &Connection, doc: &Documento) -> Result<(), String> {
     let modificado = doc.modificado.clone().unwrap_or(ahora);
 
     conn.execute(
-        "INSERT INTO document (id, titulo, icono, cover, contenido, creado, modificado)
-              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+        "INSERT INTO document (id, titulo, icono, cover, contenido, creado, modificado, bloqueada)
+              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
          ON CONFLICT(id) DO UPDATE SET
-              titulo = ?2, icono = ?3, cover = ?4, contenido = ?5, modificado = ?7",
-        params![id, doc.titulo, doc.icono, doc.cover, contenido, creado, modificado],
+              titulo = ?2, icono = ?3, cover = ?4, contenido = ?5, modificado = ?7,
+              bloqueada = ?8",
+        params![id, doc.titulo, doc.icono, doc.cover, contenido, creado, modificado, doc.bloqueada],
     )
     .map_err(|e| e.to_string())?;
 
@@ -164,6 +166,29 @@ fn indexar_en(conn: &Connection, doc: &Documento) -> Result<(), String> {
     sincronizar_tags(conn, id, &doc.tags)
 }
 
+/// Añade las columnas que hayan aparecido después de crear la base.
+///
+/// `CREATE TABLE IF NOT EXISTS` no toca una tabla que ya existe, así que sin
+/// esto una base creada por una versión anterior se quedaría sin la columna
+/// nueva y **todas las consultas fallarían al arrancar**.
+fn migrar_columnas(conn: &Connection) -> Result<(), String> {
+    let tiene = |columna: &str| -> Result<bool, String> {
+        let mut stmt = conn
+            .prepare("SELECT 1 FROM pragma_table_info('document') WHERE name = ?1")
+            .map_err(|e| e.to_string())?;
+        stmt.exists(params![columna]).map_err(|e| e.to_string())
+    };
+    if !tiene("bloqueada")? {
+        conn.execute(
+            "ALTER TABLE document ADD COLUMN bloqueada INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| e.to_string())?;
+        log::info!("índice migrado: columna `bloqueada`");
+    }
+    Ok(())
+}
+
 /// Dueña de la conexión SQLite. Se registra como estado de Tauri (`app.manage`)
 /// y los comandos la reciben vía `State<Db>`.
 pub struct Db(Mutex<Connection>);
@@ -172,6 +197,7 @@ impl Db {
     pub fn abrir(ruta: &Path) -> Result<Self, String> {
         let conn = Connection::open(ruta).map_err(|e| e.to_string())?;
         conn.execute_batch(ESQUEMA).map_err(|e| e.to_string())?;
+        migrar_columnas(&conn)?;
         Ok(Self(Mutex::new(conn)))
     }
 
@@ -232,7 +258,7 @@ impl Db {
         let conn = self.0.lock().map_err(|e| e.to_string())?;
         let doc = conn
             .query_row(
-                "SELECT id, titulo, icono, cover, contenido, creado, modificado
+                "SELECT id, titulo, icono, cover, contenido, creado, modificado, bloqueada
                    FROM document WHERE id = ?1",
                 params![id],
                 |fila| {
@@ -243,6 +269,7 @@ impl Db {
                         icono: fila.get(2)?,
                         cover: fila.get(3)?,
                         tags: Vec::new(),
+                        bloqueada: fila.get(7)?,
                         contenido: serde_json::from_str(&contenido)
                             .unwrap_or_else(|_| serde_json::json!([])),
                         creado: Some(fila.get(5)?),
@@ -269,7 +296,8 @@ impl Db {
                 "SELECT d.id, d.titulo, d.icono, d.modificado,
                         (SELECT group_concat(t.nombre, ',')
                            FROM document_tag dt JOIN tag t ON t.id = dt.tag_id
-                          WHERE dt.document_id = d.id) AS tags
+                          WHERE dt.document_id = d.id) AS tags,
+                        d.bloqueada
                    FROM document d
                   ORDER BY d.modificado DESC",
             )
@@ -285,6 +313,7 @@ impl Db {
                     tags: tags
                         .map(|s| s.split(',').map(|x| x.to_string()).collect())
                         .unwrap_or_default(),
+                    bloqueada: fila.get(5)?,
                 })
             })
             .map_err(|e| e.to_string())?;
@@ -398,5 +427,44 @@ impl Db {
         )
         .map_err(|e| e.to_string())?;
         Ok(id)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// El índice es derivado, pero **no** se recrea de cero al arrancar: solo se
+    /// vacían las filas. Sin migrar las columnas, una base de una versión
+    /// anterior rompería todas las consultas nada más abrir la app.
+    #[test]
+    fn una_base_antigua_gana_las_columnas_nuevas() {
+        let ruta = std::env::temp_dir().join(format!("db-vieja-{}.db", Uuid::new_v4()));
+        {
+            // Esquema anterior: sin `bloqueada`.
+            let conn = Connection::open(&ruta).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE document (
+                     id TEXT PRIMARY KEY, titulo TEXT NOT NULL DEFAULT '',
+                     icono TEXT, cover TEXT, contenido TEXT NOT NULL DEFAULT '[]',
+                     creado TEXT NOT NULL, modificado TEXT NOT NULL);",
+            )
+            .unwrap();
+            conn.execute(
+                "INSERT INTO document (id, titulo, contenido, creado, modificado)
+                 VALUES ('a', 'Antigua', '{}', '2026-01-01', '2026-01-01')",
+                [],
+            )
+            .unwrap();
+        }
+
+        let db = Db::abrir(&ruta).expect("abrir una base antigua no puede fallar");
+        let docs = db.listar().expect("listar tampoco");
+
+        assert_eq!(docs.len(), 1);
+        assert_eq!(docs[0].titulo, "Antigua");
+        assert!(!docs[0].bloqueada, "las notas de antes no están bloqueadas");
+
+        let _ = std::fs::remove_file(&ruta);
     }
 }

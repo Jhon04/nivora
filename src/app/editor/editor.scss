@@ -171,3 +171,64 @@
     }
   }
 }
+
+/* Bloque secreto: valor cifrado dentro de una nota normal. */
+.bloque-secreto {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 0.5rem 0;
+  padding: 9px 12px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.16));
+  border-radius: 9px;
+  background: var(--capa-suave);
+  font-size: 0.88rem;
+
+  .secreto-icono {
+    font-size: 19px;
+    opacity: 0.6;
+    flex: 0 0 auto;
+  }
+
+  .secreto-etiqueta {
+    flex: 0 0 auto;
+    font-weight: 600;
+    opacity: 0.85;
+  }
+
+  .secreto-valor {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    font-size: 0.85rem;
+    /* Que se pueda seleccionar a mano cuando está revelado. */
+    user-select: text;
+  }
+
+  .secreto-acciones {
+    display: flex;
+    gap: 2px;
+    flex: 0 0 auto;
+
+    button {
+      all: unset;
+      cursor: pointer;
+      display: inline-flex;
+      padding: 5px;
+      border-radius: 6px;
+      opacity: 0.65;
+
+      .material-icons { font-size: 17px; }
+
+      &:hover {
+        opacity: 1;
+        background: var(--capa-hover-fuerte);
+      }
+    }
+  }
+
+  &.ProseMirror-selectednode {
+    border-color: var(--mat-sys-primary, #3b82f6);
+  }
+}

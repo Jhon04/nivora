@@ -32,3 +32,16 @@ base64 = "0.22"
 sha2 = "0.10"
 # Solo los formatos que usamos (evita arrastrar AVIF/ravif, que es enorme).
 image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
+# git EMBEBIDO (libgit2), no el `git` del sistema: un portátil recién estrenado
+# con Windows o macOS no lo trae, y el primer paso del usuario no puede ser
+# instalarlo.
+git2 = { version = "0.21.0", default-features = false, features = ["https", "ssh"] }
+# El token de GitHub va al llavero del sistema (Secret Service / Keychain /
+# Credential Manager). NUNCA en el workspace: acabaría subido al repo.
+keyring = { version = "3.6.3", features = ["sync-secret-service", "crypto-rust", "apple-native", "windows-native"] }
+# API de GitHub (device flow, crear repo). `rustls` en vez de native-tls para no
+# depender del OpenSSL del sistema en cada plataforma.
+reqwest = { version = "0.13.3", default-features = false, features = ["rustls", "json", "charset", "http2", "form"] }
+tokio = { version = "1.53.1", default-features = false, features = ["time"] }
+chacha20poly1305 = "0.10.1"
+argon2 = "0.5.3"

@@ -17,6 +17,9 @@ import { DocumentosService } from './core/documentos.service';
 import { AssetsService } from './core/assets.service';
 import { PreferenciasService } from './core/preferencias.service';
 import { TemaService } from './core/tema.service';
+import { SincroService } from './core/sincro.service';
+import { BovedasService } from './core/bovedas.service';
+import { ConfiguracionDialog } from './shared/configuracion';
 import { migrarAssetsARelativo, nombreRelativo, resolverSrc } from './core/asset-path';
 import { migrarListas } from './core/migrar-listas';
 import {
@@ -53,7 +56,15 @@ export class App implements OnInit {
   private readonly assets = inject(AssetsService);
   private readonly dialog = inject(MatDialog);
   private readonly prefs = inject(PreferenciasService);
-  protected readonly tema = inject(TemaService);
+  /**
+   * No se usa desde la plantilla (el tema se cambia en ⚙ Ajustes), pero hay que
+   * inyectarlo igual: `TemaService` aplica el tema guardado en su constructor, y
+   * si nadie lo pide al arrancar la app se pintaría con el tema por defecto
+   * hasta que el usuario abriera la configuración.
+   */
+  private readonly tema = inject(TemaService);
+  protected readonly sincro = inject(SincroService);
+  protected readonly bovedas = inject(BovedasService);
 
   protected readonly documentos = signal<DocumentoResumen[]>([]);
   protected readonly actual = signal<Documento | null>(null);
@@ -70,19 +81,79 @@ export class App implements OnInit {
   protected readonly menuColorTexto = signal(false);
   protected readonly menuResaltado = signal(false);
 
-  /** Selector de tema (pie de la barra lateral). */
-  protected readonly menuTema = signal(false);
-
-  protected readonly iconoTema = computed(() => {
-    switch (this.tema.tema()) {
-      case 'claro':
-        return 'light_mode';
-      case 'oscuro':
-        return 'dark_mode';
-      default:
-        return 'brightness_auto';
-    }
+  /**
+   * ¿Se puede editar el documento abierto?
+   *
+   * La bóveda entera puede ser de solo lectura, o la nota puede estar bloqueada
+   * por quien comparte la bóveda. Esto solo apaga la interfaz: quien de verdad
+   * lo impide es Rust, en cada comando de escritura.
+   */
+  protected readonly puedeEditar = computed(() => {
+    if (this.bovedas.soloLectura()) return false;
+    if (this.bovedas.soyDueno()) return true;
+    return !this.actual()?.bloqueada;
   });
+
+  /** Vuelve a preguntar a GitHub si el acceso a esta bóveda ha vuelto. */
+  async reintentarAcceso(): Promise<void> {
+    this.error.set(null);
+    try {
+      if (await this.bovedas.comprobarAcceso()) {
+        await this.refrescar();
+        void this.sincronizarEnSegundoPlano();
+      }
+    } catch (e) {
+      this.error.set(this.msg(e));
+    }
+  }
+
+  /**
+   * Quita del listado la bóveda abierta. **No borra sus ficheros**: pueden ser
+   * notas del propio usuario, y esta acción es suya, no de quien le quitó el
+   * acceso.
+   */
+  async quitarBoveda(): Promise<void> {
+    const boveda = this.bovedas.activa();
+    if (!boveda || this.cambiandoBoveda()) return;
+
+    const ok = await firstValueFrom(
+      this.dialog
+        .open<ConfirmarDialog, ConfirmarDatos, boolean>(ConfirmarDialog, {
+          data: {
+            titulo: `Quitar «${boveda.nombre}»`,
+            mensaje:
+              'Se quita de la lista, pero sus ficheros se quedan en el disco por si quieres ' +
+              'recuperarlos. Podrás volver a conectarla si te devuelven el acceso.',
+            aceptar: 'Quitar',
+            peligro: true,
+          },
+        })
+        .afterClosed(),
+    );
+    if (!ok) return;
+
+    this.cambiandoBoveda.set(true);
+    try {
+      this.cerrarDocumento();
+      await this.bovedas.olvidar(boveda.id); // cambia sola a otra bóveda
+      await this.assets.iniciar();
+      await this.trasCambiarBoveda();
+    } catch (e) {
+      this.error.set(this.msg(e));
+    } finally {
+      this.cambiandoBoveda.set(false);
+    }
+  }
+
+  /** Descarta el aviso de notas bloqueadas restauradas. */
+  descartarRestauradas(): void {
+    this.sincro.restauradas.set([]);
+  }
+
+  /** Selector de bóveda (cabecera de la barra lateral). */
+  protected readonly menuBovedas = signal(false);
+  protected readonly nombreBovedaNueva = signal('');
+  protected readonly cambiandoBoveda = signal(false);
 
   /** Paletas para color de texto y resaltado. */
   protected readonly coloresTexto = [
@@ -134,8 +205,130 @@ export class App implements OnInit {
   }
 
   private async iniciar(): Promise<void> {
+    // El orden importa: la bóveda activa decide dónde está TODO lo demás.
+    await this.bovedas.cargar();
     await this.assets.iniciar(); // fija la carpeta base de assets antes de pintar
     await this.refrescar();
+    // La sesión y el primer «pull» van DESPUÉS de pintar: si GitHub tarda o no
+    // hay red, la app ya está usable. Nunca se bloquea el arranque por la nube.
+    void this.sincronizarEnSegundoPlano();
+  }
+
+  /**
+   * Sincroniza sin molestar: si no hay sesión o repositorio no hace nada, y si
+   * falla (sin red, por ejemplo) se calla — el error queda en el servicio y se
+   * ve en la pantalla de configuración.
+   */
+  private async sincronizarEnSegundoPlano(): Promise<void> {
+    // Bóveda sin acceso: no se reintenta en cada guardado. Reintentarlo dejaría
+    // la app dando el mismo error una y otra vez sin explicar nada.
+    if (this.bovedas.sinAcceso()) return;
+    try {
+      await this.sincro.cargarSesion();
+      const r = await this.sincro.sincronizarSiProcede();
+      if (r?.cambios) await this.refrescar();
+    } catch {
+      // Sin conexión o token caducado: las notas locales siguen funcionando.
+    }
+  }
+
+  /**
+   * Cambia de bóveda. El orden de estos cuatro pasos no es negociable:
+   *
+   * 1. **Vaciar el guardado pendiente** — el autoguardado va con temporizador;
+   *    si salta después del cambio, la nota se escribe en la bóveda equivocada.
+   * 2. Cambiar en Rust.
+   * 3. **Cerrar el documento abierto** — pertenece a la bóveda anterior, y si el
+   *    usuario sigue escribiendo se guardaría como nota nueva en la de destino.
+   * 4. **Rehacer la base de assets** — cada bóveda tiene su propio `assets/`; sin
+   *    esto, las imágenes se buscarían en la carpeta de la bóveda anterior.
+   */
+  async cambiarBoveda(id: string): Promise<void> {
+    this.menuBovedas.set(false);
+    if (this.bovedas.activa()?.id === id || this.cambiandoBoveda()) return;
+
+    this.cambiandoBoveda.set(true);
+    try {
+      await this.flushGuardado(); // (1)
+      this.cerrarDocumento(); // (3), antes de que nada más pueda tocarlo
+      await this.bovedas.cambiar(id); // (2)
+      await this.assets.iniciar(); // (4)
+      await this.trasCambiarBoveda();
+    } catch (e) {
+      this.error.set(this.msg(e));
+    } finally {
+      this.cambiandoBoveda.set(false);
+    }
+  }
+
+  /** Crea una bóveda vacía y se abre en ella. */
+  async crearBoveda(): Promise<void> {
+    const nombre = this.nombreBovedaNueva().trim();
+    if (!nombre || this.cambiandoBoveda()) return;
+
+    this.menuBovedas.set(false);
+    this.cambiandoBoveda.set(true);
+    try {
+      await this.flushGuardado();
+      this.cerrarDocumento();
+      await this.bovedas.crear(nombre); // crear ya cambia a la nueva
+      await this.assets.iniciar();
+      await this.trasCambiarBoveda();
+      this.nombreBovedaNueva.set('');
+    } catch (e) {
+      this.error.set(this.msg(e));
+    } finally {
+      this.cambiandoBoveda.set(false);
+    }
+  }
+
+  /**
+   * Pone o quita el candado de la nota abierta. Solo lo ve el dueño de la
+   * bóveda; Rust lo vuelve a comprobar de todas formas.
+   */
+  async alternarBloqueo(): Promise<void> {
+    const doc = this.actual();
+    if (!doc || !this.bovedas.soyDueno()) return;
+    this.actual.set({ ...doc, bloqueada: !doc.bloqueada });
+    await this.guardarAuto();
+  }
+
+  /** Suelta el documento abierto sin guardarlo (ya se vació antes). */
+  private cerrarDocumento(): void {
+    clearTimeout(this.timerGuardado);
+    this.timerGuardado = undefined;
+    this.actual.set(null);
+    this.estadoGuardado.set('idle');
+    this.iconoAbierto.set(false);
+    this.enlaceAbierto.set(false);
+    this.nuevaEtiqueta.set('');
+  }
+
+  /** Deja la interfaz como recién abierta, pero con la bóveda nueva. */
+  private async trasCambiarBoveda(): Promise<void> {
+    // La búsqueda y el filtro son de la bóveda anterior: sus resultados
+    // apuntarían a notas que aquí no existen.
+    this.limpiarBusqueda();
+    this.filtroTag.set(null);
+    this.error.set(null);
+    this.sincro.conflictos.set([]);
+    this.sincro.restauradas.set([]);
+    this.sincro.ultima.set(null);
+    await this.refrescar();
+    void this.sincronizarEnSegundoPlano();
+  }
+
+  /** Abre la configuración; si al conectar llegaron notas, refresca la lista. */
+  async abrirConfiguracion(): Promise<void> {
+    const ref = this.dialog.open(ConfiguracionDialog, {
+      panelClass: 'panel-configuracion',
+      width: '760px',
+      maxWidth: '94vw',
+      autoFocus: 'dialog',
+    });
+    if ((await firstValueFrom(ref.afterClosed())) === 'recargar') {
+      await this.refrescar();
+    }
   }
 
   async refrescar(): Promise<void> {
@@ -354,6 +547,9 @@ export class App implements OnInit {
   /** Reprograma el guardado automático tras cada edición del usuario. */
   private programarGuardado(): void {
     if (!this.actual()) return;
+    // Freno de fondo. La plantilla ya oculta los controles de escritura, pero
+    // basta con que se escape uno para tocar lo que no toca.
+    if (!this.puedeEditar()) return;
     this.estadoGuardado.set('pendiente');
     clearTimeout(this.timerGuardado);
     this.timerGuardado = setTimeout(() => void this.guardarAuto(), RETRASO_GUARDADO);
@@ -366,6 +562,9 @@ export class App implements OnInit {
     this.timerGuardado = undefined;
     const doc = this.actual();
     if (!doc) return;
+    // Segundo freno: `flushGuardado` llama aquí directamente, así que la
+    // comprobación de `programarGuardado` no cubriría ese camino.
+    if (!this.puedeEditar()) return;
 
     this.estadoGuardado.set('guardando');
     this.error.set(null);
@@ -383,6 +582,9 @@ export class App implements OnInit {
       // Si el usuario siguió escribiendo, ya hay otro guardado en cola.
       this.estadoGuardado.set(this.timerGuardado ? 'pendiente' : 'guardado');
       await this.refrescar();
+      // El push va aparte y sin `await`: guardar en local no puede depender de
+      // que haya red, ni el usuario esperar a GitHub para seguir escribiendo.
+      if (!this.timerGuardado) void this.sincronizarEnSegundoPlano();
     } catch (e) {
       this.estadoGuardado.set('error');
       this.error.set(this.msg(e));

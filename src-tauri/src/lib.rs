@@ -1,14 +1,17 @@
 mod almacen;
+mod bovedas;
 mod commands;
 mod db;
+mod github;
 mod models;
-
-use std::fs;
+mod secretos;
+mod sincro;
 
 use tauri::Manager;
 
-use almacen::Almacen;
-use db::Db;
+use bovedas::Bovedas;
+use github::Sesion;
+use secretos::Secretos;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -24,49 +27,31 @@ pub fn run() {
                 )?;
             }
 
-            // Estructura del workspace:
-            //   <app_data_dir>/Workspace/
+            // Cada bóveda es una carpeta autónoma:
+            //   <boveda>/
             //       notas/<id>.json   ← las notas: fuente de verdad
             //       assets/           ← imágenes, con nombre de hash
             //       workspace.db      ← índice derivado (no se sincroniza)
+            //       .git/             ← SU repositorio remoto
             //       backups/  export/
+            //
+            // El registro de bóvedas y la apertura de la activa viven en
+            // `bovedas.rs`, porque cambiar de bóveda repite exactamente esta
+            // misma secuencia y no puede estar solo aquí.
             let base = app
                 .path()
                 .app_data_dir()
                 .expect("no se pudo resolver app_data_dir");
-            let workspace = base.join("Workspace");
-            for sub in ["notas", "assets", "backups", "export"] {
-                fs::create_dir_all(workspace.join(sub))?;
-            }
+            let bovedas = Bovedas::iniciar(&base).expect("no se pudo abrir la bóveda");
+            log::info!("bóveda activa: {}", bovedas.activa().nombre);
+            app.manage(bovedas);
 
-            let db = Db::abrir(&workspace.join("workspace.db"))
-                .expect("no se pudo abrir workspace.db");
-            let almacen = Almacen::nuevo(&workspace.join("notas"))
-                .expect("no se pudo abrir notas/");
+            // Sesión de GitHub: el token vive en el llavero, aquí solo queda el
+            // device flow a medias y el usuario en memoria.
+            app.manage(Sesion::default());
+            // Clave de los bloques cifrados: solo en memoria y solo un rato.
+            app.manage(Secretos::default());
 
-            // Para que la carpeta se pueda meter en git tal cual.
-            if let Err(e) = almacen::escribir_gitignore(&workspace) {
-                log::warn!("no se pudo escribir .gitignore: {e}");
-            }
-
-            // El orden importa: primero se vuelcan a fichero las notas que solo
-            // vivían en la BD (workspaces anteriores a este cambio) y DESPUÉS se
-            // reconstruye el índice desde los ficheros. Al revés, la
-            // reconstrucción vaciaría las tablas antes de haberlas salvado.
-            almacen
-                .migrar_desde_db(&db)
-                .expect("no se pudieron migrar las notas de workspace.db");
-            let n = almacen
-                .reconstruir(&db)
-                .expect("no se pudo reconstruir el índice desde notas/");
-            if let Err(e) = db.reconstruir_assets(&workspace.join("assets")) {
-                log::warn!("no se pudo reindexar assets/: {e}");
-            }
-
-            app.manage(db);
-            app.manage(almacen);
-
-            log::info!("Workspace listo en {} ({n} notas)", workspace.display());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -75,6 +60,30 @@ pub fn run() {
             commands::listar_documentos,
             commands::eliminar_documento,
             commands::recargar_workspace,
+            commands::listar_bovedas,
+            commands::boveda_activa,
+            commands::crear_boveda,
+            commands::cambiar_boveda,
+            commands::olvidar_boveda,
+            commands::renombrar_boveda,
+            commands::estado_secretos,
+            commands::configurar_secretos,
+            commands::desbloquear_secretos,
+            commands::bloquear_secretos,
+            commands::cifrar_secreto,
+            commands::descifrar_secreto,
+            commands::rotar_clave_maestra,
+            commands::comprobar_acceso,
+            commands::github_sesion,
+            commands::github_iniciar_sesion,
+            commands::github_esperar_aprobacion,
+            commands::github_cerrar_sesion,
+            commands::github_listar_repos,
+            commands::crear_repo,
+            commands::conectar_repo,
+            commands::sincronizar,
+            commands::estado_sincro,
+            commands::desconectar_repo,
             commands::buscar_documentos,
             commands::listar_etiquetas,
             commands::guardar_asset,

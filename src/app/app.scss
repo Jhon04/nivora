@@ -15,7 +15,7 @@
 .sidebar {
   border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
   /* El scroll lo hace .side-lista, no la barra entera: así la cabecera y el
-     pie (tema) no se van al desplazar la lista de documentos. */
+     pie no se van al desplazar la lista de documentos. */
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -29,7 +29,7 @@
   overflow-y: auto;
 }
 
-/* Pie de la barra lateral: selector de tema. */
+/* Pie de la barra lateral: botón de configuración. */
 .side-pie {
   flex: 0 0 auto;
   display: flex;
@@ -41,10 +41,13 @@
   }
 }
 
-.btn-tema {
+.btn-ajustes {
   all: unset;
   box-sizing: border-box;
   cursor: pointer;
+  /* `all: unset` deja `position: static`: sin esto el punto de sincronización
+     se anclaría a un ancestro cualquiera en vez de al botón. */
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 10px;
@@ -681,4 +684,230 @@ mat-nav-list {
   display: grid;
   place-items: center;
   opacity: 0.5;
+}
+/* Punto de actividad sobre el botón de ajustes mientras sube/baja notas. */
+.punto-sincro {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--mat-sys-primary, #3b82f6);
+  animation: latido-sincro 1.1s ease-in-out infinite;
+}
+
+@keyframes latido-sincro {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+
+/* Selector de bóveda en la cabecera de la barra lateral. */
+.btn-boveda {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  /* min-width:0 para que un nombre largo se recorte en vez de empujar el
+     botón de la hamburguesa fuera de la barra. */
+  min-width: 0;
+  padding: 2px 6px;
+  border-radius: 8px;
+
+  h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  &:hover {
+    background: var(--capa-hover);
+  }
+
+  &[disabled] {
+    cursor: default;
+    opacity: 0.6;
+  }
+}
+
+.btn-boveda-caret {
+  font-size: 18px;
+  flex: 0 0 auto;
+  opacity: 0.55;
+}
+
+/* Desplegable de bóvedas: reutiliza .menu-titulos y añade lo suyo. */
+.menu-bovedas {
+  min-width: 220px;
+
+  .menu-sep {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  }
+}
+
+.menu-nueva {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 4px;
+
+  input {
+    flex: 1 1 auto;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-size: 0.85rem;
+    padding: 6px 4px;
+
+    &::placeholder {
+      color: var(--texto-tenue);
+    }
+  }
+
+  button {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    padding: 5px;
+    border-radius: 6px;
+
+    .material-icons {
+      font-size: 18px;
+    }
+
+    &:hover {
+      background: var(--capa-hover);
+    }
+
+    &[disabled] {
+      cursor: default;
+      opacity: 0.35;
+    }
+  }
+}
+
+/* Bóvedas de solo lectura: cuadernos que alguien comparte sin darte escritura. */
+.aviso-lectura {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.65));
+  background: var(--capa-suave);
+
+  .material-icons {
+    font-size: 18px;
+    flex: 0 0 auto;
+  }
+}
+
+.btn-boveda-ojo,
+.menu-ojo {
+  font-size: 15px;
+  opacity: 0.55;
+  flex: 0 0 auto;
+}
+
+.menu-ojo {
+  margin-left: auto;
+}
+
+/* Candado de nota bloqueada en la lista lateral. */
+.candado-mini {
+  font-size: 14px;
+  vertical-align: -2px;
+  margin-left: 3px;
+  opacity: 0.5;
+}
+
+/* Aviso sobre el documento cuando la nota concreta está bloqueada. */
+.aviso-nota {
+  margin-bottom: 0.75rem;
+}
+
+/* Aviso de notas bloqueadas restauradas tras una manipulación. */
+.aviso-restauradas {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 12px 0;
+  padding: 11px 13px;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  background: color-mix(in srgb, #f59e0b 20%, transparent);
+
+  > .material-icons {
+    font-size: 20px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+  }
+
+  button {
+    all: unset;
+    cursor: pointer;
+    flex: 0 0 auto;
+    padding: 3px;
+    border-radius: 50%;
+    opacity: 0.6;
+
+    .material-icons { font-size: 17px; }
+    &:hover { opacity: 1; background: var(--capa-hover-fuerte); }
+  }
+}
+
+.aviso-restauradas-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.aviso-restauradas-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 3px;
+  font-size: 0.78rem;
+  opacity: 0.85;
+}
+
+/* Bóveda cuyo repositorio ya no está a nuestro alcance. */
+.aviso-sin-acceso {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 12px 0;
+  padding: 11px 13px;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 13%, transparent);
+
+  > .material-icons {
+    font-size: 20px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+  }
+}
+
+.aviso-sin-acceso-botones {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
 }

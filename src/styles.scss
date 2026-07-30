@@ -768,3 +768,17 @@ body {
   --mat-dialog-container-color: #0e0e12;
   --mat-dialog-container-elevation-shadow: none;
 }
+
+/* Diálogo de configuración: sin el relleno por defecto de Material, porque la
+   navegación lateral tiene que llegar hasta el borde. */
+.panel-configuracion {
+  --mat-dialog-container-shape: 14px;
+
+  .mat-mdc-dialog-surface {
+    overflow: hidden;
+  }
+
+  .mat-mdc-dialog-container .mdc-dialog__surface {
+    padding: 0;
+  }
+}

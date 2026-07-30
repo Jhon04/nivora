@@ -20,6 +20,15 @@ pub struct Documento {
     pub cover: Option<String>,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Nota **bloqueada**: solo el dueño de la bóveda puede cambiarla o
+    /// borrarla; los colaboradores la leen y nada más.
+    ///
+    /// Es una barandilla, no un permiso: quien tiene acceso de escritura al
+    /// repositorio puede editar el fichero fuera de la app. Lo que la hace
+    /// sólida es que la app del dueño **restaura** su versión al sincronizar si
+    /// alguien la ha cambiado (ver `Almacen::restaurar_bloqueadas`).
+    #[serde(default)]
+    pub bloqueada: bool,
     #[serde(default = "contenido_vacio")]
     pub contenido: Value,
     #[serde(default)]
@@ -37,6 +46,9 @@ pub struct DocumentoResumen {
     pub modificado: String,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Para pintar el candado en la lista sin abrir la nota.
+    #[serde(default)]
+    pub bloqueada: bool,
 }
 
 /// Etiqueta con su número de usos (para el autocompletado y el filtro).

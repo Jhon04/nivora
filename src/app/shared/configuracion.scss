@@ -1,0 +1,405 @@
+.cfg {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  min-height: 420px;
+  max-height: 80vh;
+
+  /* En ventanas estrechas la navegación pasa arriba. */
+  @media (max-width: 640px) {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto 1fr;
+  }
+}
+
+.cfg-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 16px 10px;
+  background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
+  border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+
+  @media (max-width: 640px) {
+    flex-direction: row;
+    overflow-x: auto;
+    border-right: none;
+    border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  }
+}
+
+.cfg-titulo {
+  margin: 0 0 10px 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+
+  @media (max-width: 640px) {
+    display: none;
+  }
+}
+
+.cfg-nav-item {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+
+  .material-icons {
+    font-size: 19px;
+    opacity: 0.75;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-on-surface, #000) 7%, transparent);
+  }
+
+  &.activo {
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 15%, transparent);
+    font-weight: 600;
+  }
+}
+
+.cfg-panel {
+  position: relative;
+  padding: 22px 26px 26px;
+  overflow-y: auto;
+  min-width: 0;
+
+  h3 {
+    margin: 0 0 4px;
+    font-size: 1.05rem;
+  }
+}
+
+.cfg-cerrar {
+  all: unset;
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  padding: 6px;
+  border-radius: 50%;
+  cursor: pointer;
+  opacity: 0.6;
+
+  &:hover {
+    opacity: 1;
+    background: color-mix(in srgb, var(--mat-sys-on-surface, #000) 8%, transparent);
+  }
+}
+
+.cfg-ayuda {
+  margin: 0 0 18px;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  max-width: 52ch;
+}
+
+.cfg-nota {
+  margin: 12px 0 0;
+  font-size: 0.78rem;
+  opacity: 0.6;
+  max-width: 52ch;
+}
+
+.cfg-error,
+.cfg-aviso {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.cfg-error {
+  color: var(--mat-sys-error, #b3261e);
+  background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 12%, transparent);
+}
+
+.cfg-aviso {
+  background: color-mix(in srgb, #f59e0b 18%, transparent);
+
+  .material-icons {
+    font-size: 20px;
+  }
+}
+
+.cfg-principal .material-icons {
+  font-size: 19px;
+  margin-right: 6px;
+}
+
+/* --- código del device flow --- */
+.cfg-codigo {
+  padding: 18px;
+  border: 1px dashed var(--mat-sys-outline, rgba(0, 0, 0, 0.3));
+  border-radius: 10px;
+  text-align: center;
+
+  p {
+    margin: 0;
+    font-size: 0.85rem;
+  }
+}
+
+.cfg-codigo-valor {
+  display: block;
+  margin: 10px 0 14px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+  font-size: 1.9rem;
+  letter-spacing: 0.16em;
+  /* El usuario lo va a teclear en otra pantalla: tiene que poder seleccionarlo. */
+  user-select: all;
+}
+
+.cfg-codigo-botones {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+
+  .material-icons {
+    font-size: 17px;
+    margin-right: 5px;
+  }
+}
+
+/* --- usuario --- */
+.cfg-usuario {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
+
+  div {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  strong {
+    font-size: 0.9rem;
+  }
+}
+
+.cfg-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.cfg-login {
+  font-size: 0.78rem;
+  opacity: 0.65;
+}
+
+.cfg-salir {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+/* --- los dos caminos --- */
+.cfg-opciones {
+  display: grid;
+  gap: 10px;
+}
+
+.cfg-opcion {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+  border-radius: 10px;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--mat-sys-primary, #3b82f6);
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 7%, transparent);
+  }
+
+  .material-icons {
+    font-size: 24px;
+    opacity: 0.8;
+  }
+}
+
+.cfg-opcion-txt {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+
+  small {
+    font-size: 0.76rem;
+    opacity: 0.65;
+  }
+}
+
+/* --- formularios --- */
+.cfg-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+
+  input {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 9px 11px;
+    font: inherit;
+    color: inherit;
+    background: var(--mat-sys-surface-container, rgba(0, 0, 0, 0.04));
+    border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.16));
+    border-radius: 7px;
+
+    &:focus {
+      outline: 2px solid var(--mat-sys-primary, #3b82f6);
+      outline-offset: -1px;
+    }
+  }
+}
+
+.cfg-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+
+  .material-icons {
+    font-size: 18px;
+    margin-right: 5px;
+  }
+}
+
+/* --- lista de repos --- */
+.cfg-repos {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+  border-radius: 9px;
+}
+
+.cfg-repo {
+  all: unset;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 12px;
+  cursor: pointer;
+  font-size: 0.85rem;
+
+  .material-icons {
+    font-size: 17px;
+    opacity: 0.6;
+  }
+
+  &:hover {
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 10%, transparent);
+  }
+
+  &[disabled] {
+    opacity: 0.5;
+    cursor: default;
+  }
+}
+
+/* --- apariencia --- */
+.cfg-temas {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.cfg-tema {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+  border-radius: 9px;
+  cursor: pointer;
+  font-size: 0.85rem;
+
+  &:hover {
+    border-color: var(--mat-sys-primary, #3b82f6);
+  }
+
+  &.activo {
+    border-color: var(--mat-sys-primary, #3b82f6);
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 13%, transparent);
+    font-weight: 600;
+  }
+}
+
+/* --- workspace --- */
+.cfg-datos {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 16px;
+  margin: 0;
+  font-size: 0.83rem;
+
+  dt {
+    opacity: 0.65;
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
+code {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  background: color-mix(in srgb, var(--mat-sys-on-surface, #000) 8%, transparent);
+}
+
+/* El repositorio siempre se crea privado: no es una opción, es un hecho que se
+   le cuenta al usuario. */
+.cfg-privado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  font-size: 0.82rem;
+  opacity: 0.8;
+
+  .material-icons {
+    font-size: 17px;
+    opacity: 0.7;
+  }
+}
+
+.cfg-sub {
+  margin: 22px 0 8px;
+  font-size: 0.9rem;
+}
+
+.cfg-mini {
+  margin-left: 10px;
+  transform: scale(0.85);
+  transform-origin: left center;
+}

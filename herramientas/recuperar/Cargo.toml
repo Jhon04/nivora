@@ -1,0 +1,11 @@
+[package]
+name = "recuperar"
+version = "0.1.0"
+edition = "2021"
+
+# Solo librerías públicas de crates.io. Ni una línea de la app.
+[dependencies]
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+base64 = "0.22"
+serde_json = "1.0"
