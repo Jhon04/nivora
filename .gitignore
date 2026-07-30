@@ -44,3 +44,9 @@ Thumbs.db
 
 # Compilado de las herramientas auxiliares.
 herramientas/*/target/
+
+# Bitácora de desarrollo: notas de trabajo, no forman parte del producto.
+BITACORA.md
+
+# ---
+
