@@ -9,7 +9,7 @@
     "test": "ng test",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build --bundles deb"
+    "tauri:build": "tauri build"
   },
   "prettier": {
     "printWidth": 100,
