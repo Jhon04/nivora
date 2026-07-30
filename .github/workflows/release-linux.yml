@@ -43,9 +43,10 @@ jobs:
       - name: Create release assets
         run: |
           mkdir -p release-assets
-          cp src-tauri/target/release/bundle/deb/*.deb release-assets/ 2>/dev/null || true
-          cp src-tauri/target/release/bundle/appimage/*.AppImage release-assets/ 2>/dev/null || true
-          cp src-tauri/target/release/bundle/rpm/*.rpm release-assets/ 2>/dev/null || true
+          deb_file=$(find src-tauri/target/release/bundle/deb -maxdepth 1 -type f -name '*.deb' | head -n 1)
+          if [ -n "$deb_file" ]; then
+            cp "$deb_file" release-assets/nivora.deb
+          fi
           ls -la release-assets || true
 
       - name: Publish GitHub Release
