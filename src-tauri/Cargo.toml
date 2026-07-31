@@ -1,10 +1,10 @@
 [package]
 name = "app"
 version = "1.0.6"
-description = "A Tauri App"
-authors = ["you"]
+description = "Editor de notas local con bóvedas y sincronización por GitHub"
+authors = ["Jhon04 <48305222+Jhon04@users.noreply.github.com>"]
 license = ""
-repository = ""
+repository = "https://github.com/Jhon04/nivora"
 edition = "2021"
 rust-version = "1.77.2"
 

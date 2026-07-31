@@ -42,6 +42,11 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "category": "Productivity",
+    "publisher": "Jhon04",
+    "homepage": "https://github.com/Jhon04/nivora",
+    "shortDescription": "Editor de notas local",
+    "longDescription": "Notas locales en ficheros propios, con bóvedas independientes, búsqueda, bloques cifrados y sincronización opcional por GitHub. Sin servidor ni cuenta obligatoria.",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
