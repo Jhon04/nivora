@@ -2,6 +2,7 @@ mod almacen;
 mod bovedas;
 mod commands;
 mod db;
+mod escritorio;
 mod github;
 mod models;
 mod secretos;
@@ -26,6 +27,11 @@ pub fn run() {
             #[cfg(desktop)]
             app.handle()
                 .plugin(tauri_plugin_updater::Builder::new().build())?;
+
+            // Si venimos de un AppImage, dejarse ver en el menú de aplicaciones.
+            // No hace nada en los demás formatos ni en desarrollo.
+            #[cfg(desktop)]
+            escritorio::integrar(app.handle());
 
             if cfg!(debug_assertions) {
                 app.handle().plugin(
