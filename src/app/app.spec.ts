@@ -241,6 +241,39 @@ describe('App · botón de ajustes', () => {
   });
 });
 
+describe('App · aviso de actualización', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  async function conActualizacion() {
+    const fixture = montar();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    interno(fixture).actualizaciones.estado.set('disponible');
+    interno(fixture).actualizaciones.versionNueva.set('1.0.11');
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  it('ofrece actualizar diciendo a qué versión', async () => {
+    const fixture = await conActualizacion();
+    const html = (fixture.nativeElement as HTMLElement).textContent ?? '';
+    expect(html).toContain('1.0.11');
+    expect(html).toContain('Actualizar');
+  });
+
+  it('el botón de actualizar no es redondo', async () => {
+    const fixture = await conActualizacion();
+    const boton = (fixture.nativeElement as HTMLElement).querySelector<HTMLElement>(
+      '.aviso-accion',
+    )!;
+
+    /* El aviso hereda de `.aviso-restauradas`, que trae un `button` redondo (la
+       ✕ de cerrar). Por especificidad le ganaba a `.aviso-accion` y dejaba este
+       botón con el hover circular. */
+    expect(getComputedStyle(boton).borderRadius).toBe('4px');
+  });
+});
+
 describe('App · cambio de bóveda', () => {
   afterEach(() => TestBed.resetTestingModule());
 

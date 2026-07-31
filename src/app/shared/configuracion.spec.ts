@@ -216,10 +216,50 @@ describe('ConfiguracionDialog · navegación lateral', () => {
     const items = Array.from(
       (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>('.cfg-nav-item'),
     );
-    expect(items.length).toBe(4);
+    expect(items.length).toBe(5);
     for (const it of items) {
       expect(it.scrollWidth).withContext(it.textContent ?? '').toBeLessThanOrEqual(it.clientWidth);
     }
+  });
+});
+
+describe('ConfiguracionDialog · acerca de', () => {
+  afterEach(() => TestBed.resetTestingModule());
+
+  /** Abre «Acerca de» con unos datos de app dados (en tests no hay Tauri). */
+  async function enAcercaDe(formato: string | null) {
+    const { fixture } = montar({ usuario: ANA, estado: CON_REPO });
+    fixture.detectChanges();
+    await fixture.whenStable();
+    interno(fixture).datosApp.set({
+      version: '1.0.11',
+      tauri: '2.11.3',
+      identificador: 'pe.pluton.nivora',
+      formato,
+    });
+    interno(fixture).seccion.set('acerca');
+    fixture.detectChanges();
+    return fixture.nativeElement as HTMLElement;
+  }
+
+  it('enseña la versión, que es a lo que se viene', async () => {
+    const el = await enAcercaDe('appimage');
+    expect(el.textContent).toContain('1.0.11');
+  });
+
+  it('en AppImage ofrece buscar actualizaciones', async () => {
+    const el = await enAcercaDe('appimage');
+    expect(el.textContent).toContain('Buscar actualizaciones');
+  });
+
+  it('en .deb avisa de que no se actualiza solo', async () => {
+    const el = await enAcercaDe('deb');
+
+    /* El updater de Tauri no sabe reemplazar paquetes del sistema. Ofrecer el
+       botón aquí sería mentir: buscaría, encontraría versión nueva y no podría
+       instalarla. */
+    expect(el.textContent).not.toContain('Buscar actualizaciones');
+    expect(el.textContent).toContain('no se actualiza solo');
   });
 });
 

@@ -128,6 +128,31 @@
   max-width: 52ch;
 }
 
+/* Encabezado de «Acerca de»: la versión es lo que la gente viene a mirar, así
+   que va primero y grande, con el estado de actualización debajo. */
+.cfg-version {
+  margin: 0 0 14px;
+
+  strong {
+    display: block;
+    font-size: 1.05rem;
+  }
+
+  .cfg-ayuda {
+    margin: 2px 0 0;
+  }
+}
+
+/* Enlace de verdad dentro de un párrafo, pero es un <button> porque abre en el
+   navegador del sistema, no navega dentro de la app. */
+.cfg-enlace {
+  all: unset;
+  cursor: pointer;
+  text-decoration: underline;
+
+  &:hover { opacity: 0.8; }
+}
+
 .cfg-error,
 .cfg-aviso {
   margin: 0 0 14px;

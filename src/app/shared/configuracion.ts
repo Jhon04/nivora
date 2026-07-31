@@ -3,14 +3,25 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { open as abrirEnSistema } from '@tauri-apps/plugin-shell';
+import { getBundleType, getIdentifier, getTauriVersion, getVersion } from '@tauri-apps/api/app';
 
 import { EstadoClientId, EstadoSincro, RepoGitHub, SincroService } from '../core/sincro.service';
 import { TemaService } from '../core/tema.service';
 import { BovedasService } from '../core/bovedas.service';
 import { MINIMO_CLAVE, SecretosService } from '../core/secretos.service';
+import { ActualizacionesService } from '../core/actualizaciones.service';
 
 /** Secciones del diálogo (la lista de la izquierda). */
-type Seccion = 'cuenta' | 'secretos' | 'apariencia' | 'workspace';
+type Seccion = 'cuenta' | 'secretos' | 'apariencia' | 'workspace' | 'acerca';
+
+/** Datos de la app que se enseñan en «Acerca de». */
+interface DatosApp {
+  version: string;
+  tauri: string;
+  identificador: string;
+  /** Formato del paquete, o null si no se pudo averiguar (build de desarrollo). */
+  formato: string | null;
+}
 
 /**
  * Estados por los que pasa la sección de cuenta. Es una sola pantalla que va
@@ -32,7 +43,18 @@ export class ConfiguracionDialog implements OnInit {
   protected readonly tema = inject(TemaService);
   protected readonly bovedas = inject(BovedasService);
   protected readonly secretos = inject(SecretosService);
+  protected readonly actualizaciones = inject(ActualizacionesService);
   private readonly ref = inject(MatDialogRef<ConfiguracionDialog>);
+
+  /** Datos de «Acerca de». Null mientras no han llegado. */
+  protected readonly datosApp = signal<DatosApp | null>(null);
+
+  /**
+   * El `.deb` no puede auto-actualizarse: el updater de Tauri solo sabe
+   * reemplazar AppImage en Linux. Merece decirse donde el usuario va a buscar
+   * la version, o se quedara esperando un aviso que nunca llega.
+   */
+  protected readonly seActualizaSolo = computed(() => this.datosApp()?.formato !== 'deb');
 
   protected readonly seccion = signal<Seccion>('cuenta');
   protected readonly estadoRepo = signal<EstadoSincro | null>(null);
@@ -84,7 +106,38 @@ export class ConfiguracionDialog implements OnInit {
       this.sincro.cargarSesion(),
       this.secretos.cargarEstado().catch(() => undefined),
       this.refrescarClientId(),
+      this.cargarDatosApp(),
     ]);
+  }
+
+  /**
+   * Lee la versión y el resto de datos de la app.
+   *
+   * `getBundleType()` no existe en `tauri dev` (no hay paquete del que hablar),
+   * así que se resuelve aparte: que falle no puede dejar sin versión a una
+   * sección cuyo motivo de ser es justamente enseñarla.
+   */
+  private async cargarDatosApp(): Promise<void> {
+    try {
+      const [version, tauri, identificador] = await Promise.all([
+        getVersion(),
+        getTauriVersion(),
+        getIdentifier(),
+      ]);
+      const formato = await getBundleType().catch(() => null);
+      this.datosApp.set({ version, tauri, identificador, formato: formato ?? null });
+    } catch {
+      // Fuera de Tauri (tests, navegador) no hay nada que enseñar.
+    }
+  }
+
+  /** Comprueba actualizaciones a petición del usuario, con aviso si falla. */
+  protected async buscarActualizacion(): Promise<void> {
+    if (await this.actualizaciones.comprobar()) {
+      // El aviso con el botón «Actualizar» vive en la pantalla principal, así
+      // que se cierra el diálogo para que se vea.
+      this.ref.close();
+    }
   }
 
   protected async bloquearSecretos(): Promise<void> {
@@ -169,6 +222,10 @@ export class ConfiguracionDialog implements OnInit {
   protected abrirGitHub(): void {
     const c = this.codigo();
     if (c) void abrirEnSistema(c.url).catch(() => undefined);
+  }
+
+  protected abrirRepositorio(): void {
+    void abrirEnSistema('https://github.com/Jhon04/nivora').catch(() => undefined);
   }
 
   // -------------------------------------------------- OAuth App propia

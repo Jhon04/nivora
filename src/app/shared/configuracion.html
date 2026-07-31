@@ -14,6 +14,9 @@
     <button type="button" class="cfg-nav-item" [class.activo]="seccion() === 'workspace'" (click)="seccion.set('workspace')">
       <span class="material-icons">folder</span> Workspace
     </button>
+    <button type="button" class="cfg-nav-item" [class.activo]="seccion() === 'acerca'" (click)="seccion.set('acerca')">
+      <span class="material-icons">info</span> Acerca de
+    </button>
   </nav>
 
   <section class="cfg-panel">
@@ -359,6 +362,66 @@
         <p class="cfg-nota">
           Se cambia de bóveda desde el nombre, arriba en la barra lateral.
         </p>
+      }
+
+      @case ('acerca') {
+        <h3>Acerca de</h3>
+
+        @if (datosApp(); as app) {
+          <div class="cfg-version">
+            <strong>Nivora {{ app.version }}</strong>
+            @switch (actualizaciones.estado()) {
+              @case ('buscando') { <span class="cfg-ayuda">Comprobando…</span> }
+              @case ('error') { <span class="cfg-ayuda">{{ actualizaciones.error() }}</span> }
+              @default {
+                @if (actualizaciones.versionNueva(); as nueva) {
+                  <span class="cfg-ayuda">Hay una versión nueva disponible: {{ nueva }}</span>
+                } @else {
+                  <span class="cfg-ayuda">Es la última versión.</span>
+                }
+              }
+            }
+          </div>
+
+          @if (seActualizaSolo()) {
+            <button
+              mat-stroked-button
+              type="button"
+              (click)="buscarActualizacion()"
+              [disabled]="actualizaciones.estado() === 'buscando'">
+              Buscar actualizaciones
+            </button>
+          } @else {
+            <!-- El updater de Tauri no sabe reemplazar paquetes del sistema:
+                 decirlo aquí evita que espere un aviso que no va a llegar. -->
+            <p class="cfg-ayuda">
+              Esta copia se instaló como paquete <code>.deb</code>, que no se actualiza solo.
+              Para pasar a una versión nueva, descárgala de la página del proyecto.
+            </p>
+          }
+
+          <dl class="cfg-datos">
+            <dt>Versión</dt>
+            <dd>{{ app.version }}</dd>
+            @if (app.formato) {
+              <dt>Formato</dt>
+              <dd>{{ app.formato }}</dd>
+            }
+            <dt>Identificador</dt>
+            <dd>{{ app.identificador }}</dd>
+            <dt>Tauri</dt>
+            <dd>{{ app.tauri }}</dd>
+          </dl>
+
+          <p class="cfg-nota">
+            Notas locales en ficheros propios, con sincronización opcional por GitHub.
+            <button type="button" class="cfg-enlace" (click)="abrirRepositorio()">
+              Ver el proyecto
+            </button>
+          </p>
+        } @else {
+          <p class="cfg-ayuda">Cargando…</p>
+        }
       }
     }
   </section>

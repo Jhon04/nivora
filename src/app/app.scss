@@ -882,19 +882,22 @@ mat-nav-list {
 
   align-items: center;
   background: color-mix(in srgb, #3b82f6 20%, transparent);
-}
 
-.aviso-accion {
-  all: unset;
-  cursor: pointer;
-  flex: 0 0 auto;
-  padding: 5px 13px;
-  border-radius: 7px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  background: color-mix(in srgb, #3b82f6 55%, transparent);
+  /* Anidado a propósito: de `.aviso-restauradas` viene un `button` redondo (la
+     ✕ de cerrar) que, por especificidad, le ganaba a `.aviso-accion` y dejaba
+     este botón con el hover circular. Aquí sí gana. */
+  .aviso-accion {
+    all: unset;
+    cursor: pointer;
+    flex: 0 0 auto;
+    padding: 5px 13px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    background: color-mix(in srgb, #3b82f6 55%, transparent);
 
-  &:hover { background: color-mix(in srgb, #3b82f6 75%, transparent); }
+    &:hover { background: color-mix(in srgb, #3b82f6 75%, transparent); }
+  }
 }
 
 .aviso-restauradas-txt {
