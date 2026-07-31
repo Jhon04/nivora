@@ -1,6 +1,6 @@
 {
   "name": "nivora",
-  "version": "0.0.0",
+  "version": "1.0.6",
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
@@ -9,7 +9,8 @@
     "test": "ng test",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "sync-version": "node scripts/sync-version.mjs"
   },
   "prettier": {
     "printWidth": 100,
