@@ -7,6 +7,7 @@ import { DocumentosService } from './core/documentos.service';
 import { AssetsService } from './core/assets.service';
 import { Boveda, BovedasService } from './core/bovedas.service';
 import { NotaRestaurada, SincroService } from './core/sincro.service';
+import { ActualizacionesService, EstadoActualizacion } from './core/actualizaciones.service';
 import { Documento } from './models/documento.model';
 
 const PERSONAL: Boveda = {
@@ -133,6 +134,17 @@ function montar(orden: string[] = [], inicial: Boveda = PERSONAL) {
     sincronizarSiProcede: () => Promise.resolve(null),
   };
 
+  // Sin mock, el arranque llamaría al updater de Tauri, que aquí no existe.
+  const actualizacionesMock: Partial<ActualizacionesService> = {
+    estado: signal<EstadoActualizacion>('inactivo'),
+    versionNueva: signal<string | null>(null),
+    notas: signal<string | null>(null),
+    error: signal<string | null>(null),
+    progreso: signal<number | null>(null),
+    comprobar: () => Promise.resolve(false),
+    instalarYReiniciar: () => Promise.resolve(),
+  };
+
   TestBed.configureTestingModule({
     imports: [App],
     providers: [
@@ -141,6 +153,7 @@ function montar(orden: string[] = [], inicial: Boveda = PERSONAL) {
       { provide: AssetsService, useValue: assetsMock },
       { provide: BovedasService, useValue: bovedasMock },
       { provide: SincroService, useValue: sincroMock },
+      { provide: ActualizacionesService, useValue: actualizacionesMock },
     ],
   });
 

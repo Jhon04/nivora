@@ -48,5 +48,10 @@ herramientas/*/target/
 # Bitácora de desarrollo: notas de trabajo, no forman parte del producto.
 BITACORA.md
 
+# Clave privada de firma del updater. Vive en ~/.nivora/, fuera del repo; esto
+# es solo un seguro por si alguna vez se copia aquí sin pensar.
+*.key
+*.key.pub
+
 # ---
 

@@ -19,6 +19,7 @@ import { PreferenciasService } from './core/preferencias.service';
 import { TemaService } from './core/tema.service';
 import { SincroService } from './core/sincro.service';
 import { BovedasService } from './core/bovedas.service';
+import { ActualizacionesService } from './core/actualizaciones.service';
 import { ConfiguracionDialog } from './shared/configuracion';
 import { migrarAssetsARelativo, nombreRelativo, resolverSrc } from './core/asset-path';
 import { migrarListas } from './core/migrar-listas';
@@ -65,6 +66,7 @@ export class App implements OnInit {
   private readonly tema = inject(TemaService);
   protected readonly sincro = inject(SincroService);
   protected readonly bovedas = inject(BovedasService);
+  protected readonly actualizaciones = inject(ActualizacionesService);
 
   protected readonly documentos = signal<DocumentoResumen[]>([]);
   protected readonly actual = signal<Documento | null>(null);
@@ -212,6 +214,21 @@ export class App implements OnInit {
     // La sesión y el primer «pull» van DESPUÉS de pintar: si GitHub tarda o no
     // hay red, la app ya está usable. Nunca se bloquea el arranque por la nube.
     void this.sincronizarEnSegundoPlano();
+    // Igual con las actualizaciones: en silencio, porque quedarse sin red no es
+    // un error que el usuario tenga que ver nada más abrir la app.
+    void this.actualizaciones.comprobar(true);
+  }
+
+  /**
+   * Instala la actualización y reinicia.
+   *
+   * El vaciado del guardado pendiente es obligatorio y va primero: `relaunch()`
+   * mata el proceso, y lo que estuviera en el temporizador de autoguardado se
+   * perdería con él.
+   */
+  async actualizarAhora(): Promise<void> {
+    await this.flushGuardado();
+    await this.actualizaciones.instalarYReiniciar();
   }
 
   /**

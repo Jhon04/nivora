@@ -875,6 +875,28 @@ mat-nav-list {
   }
 }
 
+/* Misma caja que .aviso-restauradas pero en azul: esto es información útil,
+   no algo que haya ido mal. */
+.aviso-actualizacion {
+  @extend .aviso-restauradas;
+
+  align-items: center;
+  background: color-mix(in srgb, #3b82f6 20%, transparent);
+}
+
+.aviso-accion {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: 5px 13px;
+  border-radius: 7px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: color-mix(in srgb, #3b82f6 55%, transparent);
+
+  &:hover { background: color-mix(in srgb, #3b82f6 75%, transparent); }
+}
+
 .aviso-restauradas-txt {
   display: flex;
   flex-direction: column;

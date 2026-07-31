@@ -51,6 +51,48 @@ npm run tauri:dev  # levanta ng serve + la ventana Tauri
 npm run tauri:build   # binario/instalador en src-tauri/target/release
 ```
 
+## Publicar una versión
+
+Basta con etiquetar: el workflow compila Linux y Windows, y publica el release.
+
+```bash
+git tag v1.0.7 && git push origin v1.0.7
+```
+
+No hace falta tocar la versión en `package.json` ni en `tauri.conf.json`: el
+workflow la saca del tag con `scripts/sync-version.mjs` antes de compilar. En
+local, si la necesitas cuadrada: `npm run sync-version 1.0.7`.
+
+### Actualización automática
+
+La app comprueba al arrancar si hay versión nueva, contra el `latest.json` del
+último release. Si la hay, ofrece descargarla y reiniciar. El binario se
+verifica con la clave pública que va compilada dentro (`plugins.updater.pubkey`);
+sin firma válida, se rechaza.
+
+**Qué se actualiza solo y qué no:**
+
+| Formato | Auto-update |
+|---|---|
+| Windows `.exe` (NSIS) | Sí |
+| Linux `.AppImage` | Sí |
+| Linux `.deb` | **No** — el updater de Tauri no sabe reemplazar paquetes del sistema |
+
+Quien use el `.deb` tiene que descargar el nuevo a mano. Si eso llega a molestar,
+la salida es un repositorio APT propio (como hacen Chrome o VS Code, que
+registran su repo en `/etc/apt/sources.list.d/` y dejan que `apt` actualice),
+pero eso es infraestructura aparte.
+
+Para firmar, el workflow necesita dos secretos en GitHub:
+
+- `TAURI_SIGNING_PRIVATE_KEY` — contenido de la clave privada
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — su contraseña (vacía si se generó sin)
+
+> **La clave privada no se puede perder.** Si desaparece, las apps ya instaladas
+> no aceptarán ninguna actualización futura: solo confían en la clave pública que
+> llevan compilada dentro, y no hay forma de cambiársela a distancia. Habría que
+> reinstalar a mano en todas las máquinas.
+
 ## Workspace (datos del usuario)
 
 Se crea automáticamente al arrancar, dentro del `app_data_dir` del sistema:

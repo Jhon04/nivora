@@ -30,9 +30,18 @@
       }
     }
   },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdFQjA2NzlBOUY3ODU4M0MKUldROFdIaWZtbWV3Zmh6RmpnUHZiblV4N0wzbk1QQ1ZhWlFGQXJZc1QxTjd6aExHWFc4cUpMOVkK",
+      "endpoints": [
+        "https://github.com/Jhon04/nivora/releases/latest/download/latest.json"
+      ]
+    }
+  },
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
