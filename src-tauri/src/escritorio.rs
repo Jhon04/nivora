@@ -34,6 +34,15 @@ const ICONOS: &[(&str, &[u8])] = &[
 /// Nombre base del icono y del `.desktop`. Es el que va en `Icon=`.
 const NOMBRE: &str = "nivora";
 
+/// Lo que el escritorio compara contra el `WM_CLASS` de la ventana para saber
+/// que esta ventana es esta aplicacion. Sin acierto, el dock no le pone icono.
+///
+/// GTK lo saca del nombre del binario, y el binario se llama como el paquete;
+/// por eso se lee de ahi en vez de escribirlo a mano. Escrito a mano, renombrar
+/// el paquete rompería el icono del dock en silencio, que es justo el fallo que
+/// esto viene a evitar.
+const CLASE: &str = env!("CARGO_PKG_NAME");
+
 /// Integra la app con el escritorio si corre como AppImage.
 ///
 /// Fuera de AppImage no hace nada: en `.deb` ya se encarga dpkg, y en
@@ -109,7 +118,7 @@ fn plantilla(appimage: &Path) -> String {
          Categories=Office;TextEditor;\n\
          Keywords=notas;notes;markdown;editor;boveda;bóveda;nivora;\n\
          StartupNotify=true\n\
-         StartupWMClass=app\n",
+         StartupWMClass={CLASE}\n",
         exec_escapado(appimage)
     )
 }
@@ -184,6 +193,18 @@ mod tests {
     fn los_caracteres_reservados_se_escapan() {
         let e = exec_escapado(Path::new("/home/a b/x$y`z\"w.AppImage"));
         assert_eq!(e, "\"/home/a b/x\\$y\\`z\\\"w.AppImage\"");
+    }
+
+    /// El `WM_CLASS` que GTK pone a la ventana es el nombre del binario. Si el
+    /// `.desktop` anuncia otro, el escritorio no relaciona ventana y aplicacion
+    /// y el dock se queda sin icono.
+    #[test]
+    fn la_clase_de_ventana_es_la_del_binario() {
+        let d = plantilla(Path::new("/opt/Nivora.AppImage"));
+        assert!(d.contains(&format!("StartupWMClass={}", env!("CARGO_PKG_NAME"))));
+        // Y no la generica que traia la plantilla de Tauri, que chocaria con
+        // cualquier otra app que tampoco la haya cambiado.
+        assert!(!d.contains("StartupWMClass=app\n"));
     }
 
     #[test]
