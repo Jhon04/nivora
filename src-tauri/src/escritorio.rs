@@ -21,8 +21,11 @@ use tauri::{AppHandle, Manager};
 /// Iconos empotrados en el binario. No se pueden leer del AppImage montado
 /// porque su punto de montaje desaparece al cerrar la app, y la entrada del
 /// menú tiene que seguir funcionando después.
+/// El 64x64 no es opcional aunque GTK sepa escalar: es el tamaño que pide el
+/// dock, y servirlo desde el 256 se nota.
 const ICONOS: &[(&str, &[u8])] = &[
     ("32x32", include_bytes!("../icons/32x32.png")),
+    ("64x64", include_bytes!("../icons/64x64.png")),
     ("128x128", include_bytes!("../icons/128x128.png")),
     ("256x256", include_bytes!("../icons/128x128@2x.png")),
     ("512x512", include_bytes!("../icons/icon.png")),
@@ -132,12 +135,25 @@ fn exec_escapado(ruta: &Path) -> String {
     format!("\"{escapado}\"")
 }
 
-/// Pide al escritorio que reindexe. Es opcional: sin esto la entrada aparece
-/// igual, solo que puede tardar (o pedir cerrar sesion) segun el entorno.
+/// Reindexa aplicaciones e iconos.
+///
+/// Lo del icono NO es cosmetico. Si el usuario ya tiene un `icon-theme.cache`
+/// en su carpeta de iconos, GTK le hace caso ANTES que a los ficheros: mientras
+/// no se reconstruya, seguira contestando lo que decia la cache vieja — incluso
+/// rutas de ficheros que ya no existen — y el dock se queda sin icono aunque el
+/// PNG este ahi al lado.
 fn refrescar_indice(datos: &Path) {
     let _ = std::process::Command::new("update-desktop-database")
         .arg(datos.join("applications"))
         .status();
+
+    let iconos = datos.join("icons/hicolor");
+    if iconos.join("icon-theme.cache").exists() {
+        let _ = std::process::Command::new("gtk-update-icon-cache")
+            .args(["-f", "-t"])
+            .arg(&iconos)
+            .status();
+    }
 }
 
 #[cfg(test)]
@@ -205,6 +221,14 @@ mod tests {
         assert!(escribir(&datos, despues).unwrap());
         let entrada = fs::read_to_string(datos.join("applications/nivora.desktop")).unwrap();
         assert!(entrada.contains("Exec=/home/ivan/Apps/Nivora.AppImage %U"));
+    }
+
+    /// Regresion: sin el 64x64 el dock se quedaba sin icono. GTK escalaba desde
+    /// el 256 solo despues de reconstruir la cache; con una cache vieja de por
+    /// medio devolvia la ruta de un 64x64 que no existia y no pintaba nada.
+    #[test]
+    fn hay_icono_del_tamano_que_pide_el_dock() {
+        assert!(ICONOS.iter().any(|(t, _)| *t == "64x64"));
     }
 
     #[test]
