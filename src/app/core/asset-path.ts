@@ -38,6 +38,27 @@ export function resolverSrc(src: string | null | undefined): string {
 }
 
 /**
+ * Marca que distingue un icono de nota **hecho con una imagen** de uno hecho con
+ * un emoji. El campo `icono` es un solo texto y ya viaja a todas partes (nota,
+ * listado de la barra lateral, resultados de búsqueda), así que con un prefijo
+ * no hace falta ni columna nueva en SQLite ni tocar los modelos de Rust.
+ *
+ * Un emoji nunca puede empezar por esto, así que no hay ambigüedad posible.
+ */
+export const PREFIJO_ICONO = 'asset:';
+
+/**
+ * URL de la imagen de un icono, o `null` si es un emoji (o no hay icono).
+ *
+ * Quien pinta un icono llama a esto primero: si devuelve algo, va un `<img>`;
+ * si no, el texto tal cual.
+ */
+export function srcIcono(icono: string | null | undefined): string | null {
+  if (!icono?.startsWith(PREFIJO_ICONO)) return null;
+  return resolverSrc(icono.slice(PREFIJO_ICONO.length));
+}
+
+/**
  * Convierte un `src` a su nombre relativo (para migrar documentos antiguos que
  * guardaron ruta absoluta). Las URLs/datos se dejan intactos.
  */

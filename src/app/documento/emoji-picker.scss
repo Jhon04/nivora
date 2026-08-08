@@ -118,14 +118,29 @@
   border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.1));
 }
 
+/* En columna y centrado: la acción de subir imagen lleva icono, y en línea el
+   glifo (24 px por defecto) le sacaba tres cabezas al texto y descuadraba la
+   fila. Con el icono encima y el texto debajo, las tres acciones ocupan el mismo
+   alto y quedan alineadas entre sí. */
 .ep-accion {
   all: unset;
   box-sizing: border-box;
   cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   padding: 5px 10px;
   border-radius: 7px;
   font-size: 0.82rem;
+  line-height: 1.2;
+  text-align: center;
   color: var(--mat-sys-on-surface, #1a1a1a);
+
+  .material-icons {
+    font-size: 20px;
+  }
 
   &:hover { background: var(--capa-hover); }
 }

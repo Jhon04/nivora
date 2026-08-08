@@ -46,6 +46,15 @@ export class AssetsService {
     return invoke<AssetGuardado>('importar_asset', { ruta });
   }
 
+  /**
+   * Importa una imagen para usarla como icono de nota. Rust la reduce a 128 px
+   * antes de guardarla: el icono se pinta pequeño, pero sale en la barra lateral
+   * de todas las notas a la vez y el webview lo decodifica entero cada vez.
+   */
+  importarIcono(ruta: string): Promise<AssetGuardado> {
+    return invoke<AssetGuardado>('importar_icono', { ruta });
+  }
+
   /** Lee una imagen del disco SIN guardarla (para editarla antes de insertarla). */
   leerImagen(ruta: string): Promise<ImagenLeida> {
     return invoke<ImagenLeida>('leer_imagen', { ruta });

@@ -127,7 +127,11 @@
             [class.sel]="actual()?.id === d.id"
             (click)="abrir(d.id)"
             [title]="d.titulo || 'Sin título'">
-            {{ d.icono || '📄' }}
+            @if (imagenIcono(d.icono); as src) {
+              <img class="icono-img" [src]="src" alt="" />
+            } @else {
+              {{ d.icono || '📄' }}
+            }
           </button>
         }
       </div>
@@ -140,7 +144,11 @@
           @for (r of resultados(); track r.id) {
             <a mat-list-item lines="2" (click)="abrir(r.id)" [class.sel]="actual()?.id === r.id">
               <span matListItemTitle>
-                {{ r.icono || '📄' }}
+                @if (imagenIcono(r.icono); as src) {
+                  <img class="icono-img" [src]="src" alt="" />
+                } @else {
+                  {{ r.icono || '📄' }}
+                }
                 @if (r.titulo) {
                   @for (p of partesFragmento(r.titulo); track $index) {
                     @if (p.hl) { <mark>{{ p.t }}</mark> } @else { <span>{{ p.t }}</span> }
@@ -184,7 +192,12 @@
           @for (d of documentosVisibles(); track d.id) {
             <a mat-list-item (click)="abrir(d.id)" [class.sel]="actual()?.id === d.id">
               <span matListItemTitle>
-                {{ d.icono || '📄' }} {{ d.titulo || 'Sin título' }}
+                @if (imagenIcono(d.icono); as src) {
+                  <img class="icono-img" [src]="src" alt="" />
+                } @else {
+                  {{ d.icono || '📄' }}
+                }
+                {{ d.titulo || 'Sin título' }}
                 @if (d.bloqueada) {
                   <span class="material-icons candado-mini" title="Bloqueada">lock</span>
                 }
@@ -693,7 +706,11 @@
         <div class="doc-encabezado">
           @if (doc.icono) {
             <button type="button" class="doc-icono" (click)="toggleIcono()" title="Cambiar icono">
-              {{ doc.icono }}
+              @if (imagenIcono(doc.icono); as src) {
+                <img class="doc-icono-img" [src]="src" alt="Icono de la nota" />
+              } @else {
+                {{ doc.icono }}
+              }
             </button>
           }
 
@@ -716,6 +733,7 @@
             <app-emoji-picker
               (pick)="onIcono($event)"
               (remove)="onIcono(null)"
+              (subirImagen)="elegirIconoImagen()"
               (cerrar)="iconoAbierto.set(false)" />
           }
         </div>

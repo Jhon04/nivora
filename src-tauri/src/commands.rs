@@ -19,6 +19,10 @@ use crate::sincro::{self, EstadoSincro, ResultadoSincro};
 /// Lado máximo (px) de la miniatura de previsualización.
 const PREVIEW_MAX: u32 = 1024;
 
+/// Lado máximo (px) del icono de una nota. Se pinta a 40-64 px; 128 deja margen
+/// para pantallas de mucha densidad sin que el fichero pese.
+const ICONO_MAX: u32 = 128;
+
 /// Genera una miniatura ligera (máx. PREVIEW_MAX px de lado) para imágenes
 /// rasterizadas grandes. Devuelve el nombre del fichero, o None si no aplica
 /// (imagen ya pequeña, formato no soportado, o error al decodificar).
@@ -40,9 +44,22 @@ fn generar_preview(dir: &Path, hash: &str, bytes: &[u8], ext: &str) -> Option<St
         (format!("{hash}.prev.jpg"), image::ImageFormat::Jpeg)
     };
 
+    /* Se codifica en memoria para poder PESARLA antes de escribirla. Menos
+       píxeles no garantiza menos bytes: si el original venía bien comprimido
+       (un PNG con paleta, un JPEG de calidad baja), reencodarlo con los ajustes
+       por defecto puede engordarlo. Visto en un caso real: original 158 KB,
+       miniatura 188 KB. Cuando no compensa se devuelve None y se usa el
+       original, que para eso ya está en disco. */
+    let mut datos = std::io::Cursor::new(Vec::new());
+    miniatura.write_to(&mut datos, formato).ok()?;
+    let datos = datos.into_inner();
+    if datos.len() >= bytes.len() {
+        return None;
+    }
+
     let ruta = dir.join(&nombre);
     if !ruta.exists() {
-        miniatura.save_with_format(&ruta, formato).ok()?;
+        fs::write(&ruta, &datos).ok()?;
     }
     Some(nombre)
 }
@@ -764,6 +781,69 @@ pub fn leer_imagen(ruta: String) -> Result<ImagenLeida, String> {
     })
 }
 
+/// Formatos que se guardan como icono **tal cual**, sin rasterizar: un SVG
+/// dejaría de ser vectorial y un GIF animado se quedaría en su primer
+/// fotograma. Son ficheros pequeños de por sí, así que tampoco hace falta.
+const ICONO_SIN_REDUCIR: &[&str] = &["svg", "gif"];
+
+/// Importa una imagen para usarla como **icono de una nota**, reducida.
+///
+/// No vale con `importar_asset`: el icono se pinta a 40 px, pero aparece en la
+/// barra lateral de TODAS las notas a la vez, y el webview decodifica la imagen
+/// entera cada vez. Una foto de móvil como icono se paga en cada repintado de la
+/// lista.
+///
+/// Tampoco vale la miniatura que ya genera `escribir_asset`: los `*.prev.*`
+/// están en el `.gitignore` del workspace por regenerables, así que un icono que
+/// apuntara ahí desaparecería al sincronizar en otro equipo. Por eso el icono
+/// reducido se guarda como un asset **normal**, que sí viaja.
+///
+/// Angular: `invoke('importar_icono', { ruta })`
+#[tauri::command]
+pub fn importar_icono(
+    bovedas: State<'_, Bovedas>,
+    ruta: String,
+) -> Result<AssetGuardado, String> {
+    exigir_escritura(&bovedas, None)?;
+    let bytes = fs::read(&ruta).map_err(|e| format!("No se pudo leer {ruta}: {e}"))?;
+    let ext = Path::new(&ruta)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("png")
+        .to_lowercase();
+
+    let dir = bovedas.ruta().join("assets");
+    let db = bovedas.db();
+
+    if ICONO_SIN_REDUCIR.contains(&ext.as_str()) {
+        return escribir_asset(&dir, &db, &bytes, &ext);
+    }
+
+    match reducir_a_icono(&bytes) {
+        Some(png) => escribir_asset(&dir, &db, &png, "png"),
+        // Formato que `image` no sabe decodificar: mejor el original que nada.
+        None => escribir_asset(&dir, &db, &bytes, &ext),
+    }
+}
+
+/// Reduce una imagen a un PNG de como mucho `ICONO_MAX` px de lado.
+///
+/// Siempre PNG: el icono puede tener transparencia (un logo recortado), y
+/// pasarlo a JPEG se la comería pintando un fondo negro.
+fn reducir_a_icono(bytes: &[u8]) -> Option<Vec<u8>> {
+    let img = image::load_from_memory(bytes).ok()?;
+    let (ancho, alto) = img.dimensions();
+    let reducida = if ancho <= ICONO_MAX && alto <= ICONO_MAX {
+        img // ya es pequeña: reescalarla solo perdería nitidez
+    } else {
+        img.thumbnail(ICONO_MAX, ICONO_MAX) // conserva el aspecto
+    };
+
+    let mut salida = std::io::Cursor::new(Vec::new());
+    reducida.write_to(&mut salida, image::ImageFormat::Png).ok()?;
+    Some(salida.into_inner())
+}
+
 /// Importa un asset leyendo un fichero del disco (imagen copiada desde el
 /// explorador → se pega su ruta).
 /// Angular: `invoke('importar_asset', { ruta })`
@@ -779,4 +859,146 @@ pub fn importar_asset(
         .and_then(|e| e.to_str())
         .unwrap_or("png");
     escribir_asset(&bovedas.ruta().join("assets"), &bovedas.db(), &bytes, ext)
+}
+
+#[cfg(test)]
+mod tests_icono {
+    use super::*;
+    use image::{ImageBuffer, Rgba};
+
+    /// PNG de `ancho`x`alto` en memoria, con transparencia.
+    fn png(ancho: u32, alto: u32) -> Vec<u8> {
+        let img: ImageBuffer<Rgba<u8>, Vec<u8>> =
+            ImageBuffer::from_fn(ancho, alto, |x, _| Rgba([255, 0, 0, if x == 0 { 0 } else { 255 }]));
+        let mut salida = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::ImageRgba8(img)
+            .write_to(&mut salida, image::ImageFormat::Png)
+            .unwrap();
+        salida.into_inner()
+    }
+
+    fn medir(bytes: &[u8]) -> (u32, u32) {
+        let img = image::load_from_memory(bytes).unwrap();
+        img.dimensions()
+    }
+
+    #[test]
+    fn una_foto_grande_se_reduce() {
+        // Es el caso que motiva el comando: el icono se pinta a 40 px pero sale
+        // en la barra lateral de todas las notas, y el webview decodifica la
+        // imagen entera en cada repintado.
+        let reducido = reducir_a_icono(&png(2000, 1000)).expect("deberia reducirse");
+        let (ancho, alto) = medir(&reducido);
+
+        assert!(ancho <= ICONO_MAX && alto <= ICONO_MAX, "quedo en {ancho}x{alto}");
+        // Y sin deformarse: 2:1 sigue siendo 2:1.
+        assert_eq!(ancho, ICONO_MAX);
+        assert_eq!(alto, ICONO_MAX / 2);
+        assert!(reducido.len() < png(2000, 1000).len(), "y deberia pesar menos");
+    }
+
+    #[test]
+    fn una_imagen_ya_pequena_no_se_reescala() {
+        // Reescalar hacia arriba (o hacia abajo y vuelta) solo pierde nitidez.
+        let reducido = reducir_a_icono(&png(64, 64)).unwrap();
+        assert_eq!(medir(&reducido), (64, 64));
+    }
+
+    #[test]
+    fn la_transparencia_sobrevive() {
+        // El icono puede ser un logo recortado. En JPEG el fondo transparente
+        // se volveria negro, asi que la salida es PNG siempre.
+        let reducido = reducir_a_icono(&png(500, 500)).unwrap();
+        let img = image::load_from_memory(&reducido).unwrap();
+
+        assert!(img.color().has_alpha(), "el icono no puede perder el alfa");
+        assert_eq!(
+            image::guess_format(&reducido).unwrap(),
+            image::ImageFormat::Png,
+        );
+    }
+
+    #[test]
+    fn un_fichero_que_no_es_imagen_no_revienta() {
+        // Devuelve None y quien llama guarda el original: mejor eso que un error
+        // en la cara al elegir un fichero raro.
+        assert!(reducir_a_icono(b"esto no es una imagen").is_none());
+    }
+
+    #[test]
+    fn los_vectoriales_y_animados_no_se_rasterizan() {
+        // Rasterizar un SVG lo dejaria sin ser vectorial, y un GIF animado se
+        // quedaria en su primer fotograma.
+        assert!(ICONO_SIN_REDUCIR.contains(&"svg"));
+        assert!(ICONO_SIN_REDUCIR.contains(&"gif"));
+    }
+}
+
+#[cfg(test)]
+mod tests_preview {
+    use super::*;
+    use image::codecs::jpeg::JpegEncoder;
+    use image::{ImageBuffer, Rgb};
+
+    fn temporal() -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!("preview-{}", uuid::Uuid::new_v4()));
+        fs::create_dir_all(&d).unwrap();
+        d
+    }
+
+    /// Imagen con ruido (incompresible) de `lado`x`lado`.
+    fn ruidosa(lado: u32) -> ImageBuffer<Rgb<u8>, Vec<u8>> {
+        let mut semilla: u32 = 12345;
+        ImageBuffer::from_fn(lado, lado, |_, _| {
+            semilla = semilla.wrapping_mul(1664525).wrapping_add(1013904223);
+            let b = semilla.to_le_bytes();
+            Rgb([b[0], b[1], b[2]])
+        })
+    }
+
+    fn a_jpeg(img: &ImageBuffer<Rgb<u8>, Vec<u8>>, calidad: u8) -> Vec<u8> {
+        let mut salida = std::io::Cursor::new(Vec::new());
+        JpegEncoder::new_with_quality(&mut salida, calidad)
+            .encode_image(&image::DynamicImage::ImageRgb8(img.clone()))
+            .unwrap();
+        salida.into_inner()
+    }
+
+    #[test]
+    fn una_foto_grande_si_genera_miniatura() {
+        let dir = temporal();
+        let bytes = a_jpeg(&ruidosa(2000), 90);
+
+        let nombre = generar_preview(&dir, "hash1", &bytes, "jpg").expect("deberia generarse");
+
+        let miniatura = fs::read(dir.join(&nombre)).unwrap();
+        assert!(miniatura.len() < bytes.len(), "y tiene que pesar menos");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn si_la_miniatura_no_sale_mas_pequena_no_se_guarda() {
+        /* Regresion medida en una boveda real: original 158 KB, miniatura
+           188 KB. Menos pixeles no es menos bytes — aqui el original va con
+           calidad 10 (muy comprimido) y reencodar a la calidad por defecto lo
+           engorda aunque se reduzca el tamano. */
+        let dir = temporal();
+        let bytes = a_jpeg(&ruidosa(1100), 10);
+
+        assert!(generar_preview(&dir, "hash2", &bytes, "jpg").is_none());
+
+        // Y no deja basura en disco: nada de escribir para luego descartarla.
+        let sobrantes: Vec<_> = fs::read_dir(&dir).unwrap().flatten().collect();
+        assert!(sobrantes.is_empty(), "no deberia haber escrito nada");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn una_imagen_pequena_no_necesita_miniatura() {
+        let dir = temporal();
+        let bytes = a_jpeg(&ruidosa(300), 90);
+
+        assert!(generar_preview(&dir, "hash3", &bytes, "jpg").is_none());
+        let _ = fs::remove_dir_all(&dir);
+    }
 }

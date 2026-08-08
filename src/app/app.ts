@@ -22,7 +22,13 @@ import { SincroService } from './core/sincro.service';
 import { BovedasService } from './core/bovedas.service';
 import { ActualizacionesService } from './core/actualizaciones.service';
 import { ConfiguracionDialog } from './shared/configuracion';
-import { migrarAssetsARelativo, nombreRelativo, resolverSrc } from './core/asset-path';
+import {
+  migrarAssetsARelativo,
+  nombreRelativo,
+  PREFIJO_ICONO,
+  resolverSrc,
+  srcIcono,
+} from './core/asset-path';
 import { migrarListas } from './core/migrar-listas';
 import {
   Documento,
@@ -431,6 +437,40 @@ export class App implements OnInit {
     if (!a) return;
     this.actual.set({ ...a, icono });
     this.programarGuardado();
+  }
+
+  /**
+   * URL de la imagen de un icono, o null si es un emoji. La plantilla la usa
+   * para decidir entre `<img>` y texto, en la nota y en los listados.
+   */
+  imagenIcono(icono: string | null | undefined): string | null {
+    return srcIcono(icono);
+  }
+
+  /**
+   * Icono a partir de una imagen del usuario (estilo Notion).
+   *
+   * Rust la reduce a 128 px y la guarda como asset **normal** (no como
+   * miniatura `.prev`, que el `.gitignore` del workspace excluye por
+   * regenerable: un icono que apuntara ahí desaparecería al sincronizar en otro
+   * equipo). En el documento solo va el nombre relativo, con el prefijo que lo
+   * distingue de un emoji.
+   */
+  async elegirIconoImagen(): Promise<void> {
+    const ruta = await open({
+      multiple: false,
+      filters: [
+        { name: 'Imágenes', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'svg'] },
+      ],
+    });
+    if (typeof ruta !== 'string') return;
+    try {
+      const asset = await this.assets.importarIcono(ruta);
+      this.onIcono(`${PREFIJO_ICONO}${asset.nombre}`);
+      this.iconoAbierto.set(false);
+    } catch (e) {
+      this.error.set(this.msg(e));
+    }
   }
 
   async elegirPortada(): Promise<void> {

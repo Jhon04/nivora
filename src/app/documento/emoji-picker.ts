@@ -392,6 +392,12 @@ export class EmojiPicker implements AfterViewInit {
   readonly pick = output<string>();
   readonly remove = output<void>();
   readonly cerrar = output<void>();
+  /**
+   * El usuario quiere usar una imagen suya como icono. Solo se avisa: elegir el
+   * fichero e importarlo es cosa de quien nos usa, que es quien tiene el
+   * servicio de assets y sabe en qué bóveda está.
+   */
+  readonly subirImagen = output<void>();
 
   @ViewChild('inputBuscar') private inputBuscar?: ElementRef<HTMLInputElement>;
 

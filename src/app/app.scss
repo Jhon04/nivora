@@ -630,6 +630,26 @@ mat-nav-list {
   }
 }
 
+/* Icono de imagen (el que sube el usuario): ocupa el mismo hueco que el emoji al
+   que sustituye. `cover` lo recorta a cuadrado — una foto apaisada no puede
+   deformarse ni descuadrar la fila. Arriba, en la nota; abajo, en los listados,
+   a la altura de una línea de texto. */
+.doc-icono-img {
+  display: block;
+  width: 4rem;
+  height: 4rem;
+  object-fit: cover;
+  border-radius: 12px;
+}
+
+.icono-img {
+  width: 1.25em;
+  height: 1.25em;
+  object-fit: cover;
+  border-radius: 4px;
+  vertical-align: -0.3em;
+}
+
 .doc-acciones {
   display: flex;
   flex-wrap: wrap;

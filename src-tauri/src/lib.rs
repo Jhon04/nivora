@@ -104,6 +104,7 @@ pub fn run() {
             commands::listar_etiquetas,
             commands::guardar_asset,
             commands::importar_asset,
+            commands::importar_icono,
             commands::leer_imagen,
         ])
         .run(tauri::generate_context!())

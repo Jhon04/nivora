@@ -41,6 +41,11 @@
 
   <div class="ep-pie">
     <button type="button" class="ep-accion" (click)="aleatorio()">🎲 Aleatorio</button>
+    <!-- El fichero lo elige e importa quien nos usa: aquí no se tocan assets. -->
+    <button type="button" class="ep-accion" (click)="subirImagen.emit()">
+      <span class="material-icons">image</span>
+      <span>Subir imagen</span>
+    </button>
     <button type="button" class="ep-accion" (click)="quitar()">Quitar icono</button>
   </div>
 </div>
