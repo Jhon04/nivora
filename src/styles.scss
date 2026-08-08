@@ -308,6 +308,10 @@ body {
   h3 { font-size: 1.2rem; font-weight: 600; margin-top: 0.8em; }
   h4 { font-size: 1.05rem; font-weight: 600; margin-top: 0.7em; }
 
+  /* Al saltar desde el índice, el título no se queda pegado al borde de arriba:
+     se ve que empieza una sección. */
+  h1, h2, h3, h4 { scroll-margin-top: 1.25rem; }
+
   img {
     max-width: 100%;
     height: auto;

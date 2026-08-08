@@ -1,0 +1,52 @@
+<div class="indice-cab">
+  <span class="material-icons">toc</span>
+  <span class="indice-tit">Índice</span>
+  <button
+    type="button"
+    class="indice-cerrar"
+    (click)="cerrar.emit()"
+    title="Ocultar índice"
+    aria-label="Ocultar índice">
+    <span class="material-icons">close</span>
+  </button>
+</div>
+
+@if (entradas().length) {
+  <!-- Buscador: en una nota con muchas secciones, escribir dos letras llega
+       antes que recorrer la lista con la vista. -->
+  <div class="indice-buscador">
+    <span class="material-icons">search</span>
+    <input
+      type="search"
+      [ngModel]="filtro()"
+      (ngModelChange)="filtro.set($event)"
+      (keydown.escape)="filtro.set('')"
+      placeholder="Buscar sección…"
+      aria-label="Buscar sección en el índice" />
+    @if (filtro()) {
+      <button type="button" (click)="filtro.set('')" aria-label="Limpiar búsqueda">
+        <span class="material-icons">close</span>
+      </button>
+    }
+  </div>
+}
+
+@if (visibles().length) {
+  <nav class="indice-lista">
+    @for (v of visibles(); track v.entrada.pos) {
+      <button
+        type="button"
+        class="indice-item"
+        [class.activo]="activo() === v.i"
+        [style.--sangria]="v.entrada.sangria"
+        [title]="v.entrada.texto"
+        (click)="irA.emit(v.i)">
+        {{ v.entrada.texto }}
+      </button>
+    }
+  </nav>
+} @else if (filtro()) {
+  <p class="indice-vacio">Ninguna sección coincide con «{{ filtro() }}».</p>
+} @else {
+  <p class="indice-vacio">Pon las secciones como título (H1–H4) y aparecerán aquí.</p>
+}

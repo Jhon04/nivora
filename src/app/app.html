@@ -628,6 +628,15 @@
 
         <span class="tb-spacer"></span>
 
+        <button
+          type="button"
+          class="tb-btn"
+          [class.activo]="indiceAbierto()"
+          (click)="alternarIndice()"
+          title="Índice de la nota (títulos)">
+          <span class="material-icons">toc</span>
+        </button>
+
         <button type="button" class="tb-btn tb-insertar" (click)="ed.elegirImagen()" title="Insertar imagen desde archivo">
           <span class="material-icons">image</span> Insertar
         </button>
@@ -657,9 +666,13 @@
         </div>
       </div>
 
+      <!-- Documento y su índice, uno al lado del otro y por debajo de la barra
+           de herramientas (que cruza los dos). -->
+      <div class="pane-cuerpo">
       <!-- Zona con scroll propio: la barra de arriba queda fuera, así la barra
-           de desplazamiento empieza por debajo y no la cruza. -->
-      <div class="pane-scroll">
+           de desplazamiento empieza por debajo y no la cruza. El scroll se le
+           pasa al editor, que es quien sabe qué título toca resaltar. -->
+      <div class="pane-scroll" (scroll)="ed.alScroll($event)">
       <!-- Portada del documento -->
       @if (coverUrl(); as cov) {
         <div class="cover-wrap">
@@ -755,6 +768,17 @@
           [editable]="puedeEditar()"
           (contentChange)="onContenido($event)" />
       </div>
+      </div>
+
+      <!-- Índice: los títulos (H1–H4) de la nota, como el de una tesis. Se arma
+           solo a partir del documento, así que no hay nada que guardar. -->
+      @if (indiceAbierto()) {
+        <app-indice-nota
+          [entradas]="ed.indice()"
+          [activo]="ed.tituloActivo()"
+          (irA)="ed.irATitulo($event)"
+          (cerrar)="alternarIndice()" />
+      }
       </div>
     } @else {
       <div class="placeholder">

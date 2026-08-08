@@ -1,0 +1,153 @@
+/* Panel pegado al lado derecho, de arriba abajo. Va POR ENCIMA de la nota
+   (`position: absolute`) en vez de ser una columna más: el texto conserva su
+   ancho y el índice no obliga a repartir sitio con él.
+
+   Al flotar sobre el texto necesita fondo propio —si no, se transparentaría lo
+   de debajo— y una sombra hacia la izquierda que lo despegue de la nota.
+
+   Todo esto vive aquí y no en el layout de la app para que el panel se lleve
+   consigo lo suyo; quien lo coloca solo pone el `position: relative`. */
+:host {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  /* Por encima del handle de arrastre (fixed, z-index 5) y por debajo de la
+     barra de herramientas (z-index 10). */
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  width: 250px;
+  overflow: hidden;
+  background: var(--mat-sys-surface);
+  border-left: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  box-shadow: -8px 0 24px -12px var(--sombra-color);
+}
+
+.indice-cab {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 10px 14px;
+  color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6));
+
+  .material-icons {
+    font-size: 18px;
+  }
+}
+
+.indice-tit {
+  flex: 1 1 auto;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.indice-cerrar {
+  all: unset;
+  cursor: pointer;
+  display: inline-flex;
+  border-radius: 50%;
+  padding: 2px;
+
+  .material-icons {
+    opacity: 0.7;
+  }
+
+  &:hover {
+    background: var(--capa-hover-fuerte);
+  }
+}
+
+/* Mismo aire que el buscador de la barra lateral, en pequeño. */
+.indice-buscador {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 8px 8px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--capa-suave);
+  color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.6));
+
+  .material-icons {
+    font-size: 17px;
+  }
+
+  input {
+    all: unset;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 6px 0;
+    font-size: 0.82rem;
+    color: var(--mat-sys-on-surface, #1a1a1a);
+
+    /* La ✕ nativa del type=search no sigue al tema y desentona; la nuestra sí. */
+    &::-webkit-search-cancel-button {
+      display: none;
+    }
+  }
+
+  button {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    border-radius: 50%;
+    padding: 2px;
+
+    &:hover {
+      background: var(--capa-hover-fuerte);
+    }
+  }
+}
+
+.indice-lista {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 8px 12px;
+}
+
+.indice-item {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  width: 100%;
+  /* Un escalón por nivel de título, contado desde el más alto de la nota. */
+  padding: 5px 8px 5px calc(8px + var(--sangria, 0) * 14px);
+  border-radius: 6px;
+  /* Dos líneas como mucho: un título largo no debe estirar el panel ni ocupar
+     medio índice. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.62));
+
+  &:hover {
+    background: var(--capa-hover);
+    color: var(--mat-sys-on-surface, #1a1a1a);
+  }
+
+  /* La sección que se está leyendo. Además del color, una barra a la izquierda:
+     el color solo se confunde con el resaltado del ratón. */
+  &.activo {
+    color: var(--mat-sys-primary, #3b82f6);
+    font-weight: 600;
+    box-shadow: inset 2px 0 0 var(--mat-sys-primary, #3b82f6);
+  }
+}
+
+.indice-vacio {
+  margin: 0;
+  padding: 0 14px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  font-style: italic;
+  opacity: 0.55;
+}

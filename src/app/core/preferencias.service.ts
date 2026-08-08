@@ -6,6 +6,8 @@ export type Tema = 'sistema' | 'claro' | 'oscuro';
 /** Preferencias de interfaz que sobreviven al cierre de la app. */
 export interface Preferencias {
   sidebarColapsada: boolean;
+  /** Panel del índice (títulos de la nota) a la derecha del documento. */
+  indiceAbierto: boolean;
   tema: Tema;
 }
 
@@ -13,6 +15,7 @@ const CLAVE = 'nivora.preferencias';
 
 const POR_DEFECTO: Preferencias = {
   sidebarColapsada: false,
+  indiceAbierto: true,
   tema: 'sistema',
 };
 

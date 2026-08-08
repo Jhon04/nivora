@@ -12,6 +12,7 @@ import { firstValueFrom } from 'rxjs';
 import { ConfirmarDatos, ConfirmarDialog } from './shared/confirmar-dialog';
 import { EditorComponent } from './editor/editor';
 import { EmojiPicker } from './documento/emoji-picker';
+import { IndiceNota } from './documento/indice-nota';
 import { DragScrollDirective } from './shared/drag-scroll';
 import { DocumentosService } from './core/documentos.service';
 import { AssetsService } from './core/assets.service';
@@ -43,6 +44,7 @@ type EstadoGuardado = 'idle' | 'pendiente' | 'guardando' | 'guardado' | 'error';
     FormsModule,
     EditorComponent,
     EmojiPicker,
+    IndiceNota,
     DragScrollDirective,
     OverlayModule,
     MatButtonModule,
@@ -188,6 +190,9 @@ export class App implements OnInit {
 
   /** Sidebar colapsada (solo iconos). Arranca como la dejó el usuario. */
   protected readonly sidebarColapsada = signal(this.prefs.obtener().sidebarColapsada);
+
+  /** Panel del índice (títulos de la nota). También se recuerda entre sesiones. */
+  protected readonly indiceAbierto = signal(this.prefs.obtener().indiceAbierto);
 
   /** Documentos visibles en la barra lateral, aplicando el filtro por etiqueta. */
   protected readonly documentosVisibles = computed(() => {
@@ -482,6 +487,11 @@ export class App implements OnInit {
   toggleSidebar(): void {
     this.sidebarColapsada.update((v) => !v);
     this.prefs.fijar('sidebarColapsada', this.sidebarColapsada());
+  }
+
+  alternarIndice(): void {
+    this.indiceAbierto.update((v) => !v);
+    this.prefs.fijar('indiceAbierto', this.indiceAbierto());
   }
 
   /** Color estable derivado del nombre de la etiqueta. */

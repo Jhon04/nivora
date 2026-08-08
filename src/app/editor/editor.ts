@@ -8,6 +8,7 @@ import {
   OnDestroy,
   output,
   signal,
+  untracked,
   viewChild,
 } from '@angular/core';
 import { Editor, JSONContent } from '@tiptap/core';
@@ -35,6 +36,7 @@ import { CodeBlockCopia } from './code-block-copia';
 import { BlockDrag } from './block-drag';
 import { BloqueLista, TipoLista } from './lista-plana';
 import { ColorAdaptable, ResaltadoAdaptable } from './color-adaptable';
+import { EntradaIndice, extraerIndice } from './indice';
 import {
   createSlashCommand,
   EVENTO_IMAGEN,
@@ -106,6 +108,13 @@ interface SlashPos {
   arriba: boolean;
 }
 
+/**
+ * Margen desde el borde superior del área con scroll a partir del cual se
+ * considera que una sección ya ha pasado. Sin holgura, el título que acaba de
+ * quedar justo en el borde parpadea entre activo y no activo al desplazarse.
+ */
+const HOLGURA_ACTIVO = 24;
+
 @Component({
   selector: 'app-editor',
   imports: [TiptapEditorDirective, TiptapBubbleMenuDirective, OverlayModule],
@@ -154,6 +163,23 @@ export class EditorComponent implements OnDestroy {
   protected readonly slashPos = signal<SlashPos>({ left: 0, top: 0, arriba: false });
   private slashSelect: ((item: SlashItem) => void) | null = null;
   private readonly menuSlash = viewChild<ElementRef<HTMLElement>>('menuSlash');
+
+  // --- Índice de la nota (panel de títulos) ---
+  /** Títulos de la nota, en orden. Se rehace en cada cambio del documento. */
+  readonly indice = signal<EntradaIndice[]>([]);
+  /**
+   * Cuál de las entradas del índice se resalta, **por su orden en la lista** y
+   * no por su posición en el documento: escribir dentro de una sección desplaza
+   * todas las posiciones que hay por debajo, así que guardar un `pos` obligaría
+   * a medir el DOM en cada tecla para saber si sigue siendo el mismo título.
+   */
+  readonly tituloActivo = signal(0);
+  /**
+   * Contenedor con scroll donde vive el editor. Lo trae el propio evento de
+   * scroll, así que el editor no necesita saber nada del layout de la app.
+   */
+  private contenedorScroll: HTMLElement | null = null;
+  private recalculoPedido = false;
 
   /** URL del original a tamaño completo en el visor (lightbox), o null. */
   protected readonly lightbox = signal<string | null>(null);
@@ -300,6 +326,7 @@ export class EditorComponent implements OnDestroy {
         const json = editor.getJSON();
         this.ultimoEmitido = JSON.stringify(json);
         this.contentChange.emit(json);
+        this.actualizarIndice();
       },
     });
 
@@ -332,11 +359,25 @@ export class EditorComponent implements OnDestroy {
       } catch {
         this.editor.commands.setContent(DOC_VACIO, { emitUpdate: false });
       }
+      // `emitUpdate: false` deja fuera a `onUpdate`, así que el índice de la
+      // nota que se acaba de abrir hay que rehacerlo aquí. Y se empieza por
+      // arriba, que es donde queda el documento al abrirlo.
+      this.tituloActivo.set(0);
+      this.actualizarIndice();
     });
 
-    // Bóvedas de solo lectura: se apaga ProseMirror entero. Ocultar botones no
-    // basta — el teclado, el pegado y el menú «/» seguirían editando.
-    effect(() => this.editor.setEditable(this.editable()));
+    /* Bóvedas de solo lectura: se apaga ProseMirror entero. Ocultar botones no
+       basta — el teclado, el pegado y el menú «/» seguirían editando.
+
+       `setEditable` **emite `update` de forma síncrona**, así que lo que cuelgue
+       de `onUpdate` acaba ejecutándose aquí dentro, en pleno contexto reactivo.
+       El `untracked` corta eso: sin él, este efecto se suscribía a las señales
+       que lee el índice —que él mismo termina escribiendo— y se redisparaba sin
+       parar hasta bloquear la aplicación. */
+    effect(() => {
+      const editable = this.editable();
+      untracked(() => this.editor.setEditable(editable));
+    });
   }
 
   // --- Slash menu ---
@@ -410,6 +451,78 @@ export class EditorComponent implements OnDestroy {
   protected slashPick(i: number): void {
     const item = this.slashItems()[i];
     if (item && this.slashSelect) this.slashSelect(item);
+  }
+
+  // --- Índice de la nota ---
+  /**
+   * Rehace la lista de títulos. Es un recorrido del documento, así que se llama
+   * en cada cambio; lo caro (medir el DOM para saber qué sección se está
+   * mirando) se deja para cuando de verdad cambia el número de títulos: teclear
+   * dentro de una sección no altera el orden de las entradas.
+   */
+  private actualizarIndice(): void {
+    /* `untracked` porque esto cuelga de `onUpdate`, y Tiptap emite ese evento de
+       forma síncrona desde comandos que sí se llaman dentro de efectos. Sin él,
+       el efecto de turno quedaría suscrito a `indice` —que aquí se escribe— y se
+       redispararía en bucle. */
+    untracked(() => {
+      const antes = this.indice().length;
+      this.indice.set(extraerIndice(this.editor.state.doc));
+      if (this.indice().length !== antes) this.recalcularActivo();
+    });
+  }
+
+  /**
+   * Llamar desde el contenedor con scroll que envuelve al editor. Se limita a
+   * un recálculo por fotograma: el evento de scroll llega decenas de veces por
+   * segundo y medir posiciones fuerza al navegador a recalcular el layout.
+   */
+  alScroll(ev: Event): void {
+    this.contenedorScroll = ev.target as HTMLElement;
+    if (this.recalculoPedido) return;
+    this.recalculoPedido = true;
+    requestAnimationFrame(() => {
+      this.recalculoPedido = false;
+      this.recalcularActivo();
+    });
+  }
+
+  /** Sección activa = el último título que ya ha pasado por el borde de arriba. */
+  private recalcularActivo(): void {
+    const entradas = this.indice();
+    const contenedor = this.contenedorScroll;
+    if (entradas.length === 0 || !contenedor) {
+      this.tituloActivo.set(0);
+      return;
+    }
+
+    const limite = contenedor.getBoundingClientRect().top + HOLGURA_ACTIVO;
+    let activo = 0;
+    for (const [i, entrada] of entradas.entries()) {
+      const dom = this.editor.view.nodeDOM(entrada.pos);
+      if (!(dom instanceof HTMLElement)) continue;
+      if (dom.getBoundingClientRect().top > limite) break;
+      activo = i;
+    }
+    this.tituloActivo.set(activo);
+  }
+
+  /** Clic en una entrada del índice: lleva la vista —y el cursor— a esa sección. */
+  irATitulo(i: number): void {
+    const entrada = this.indice()[i];
+    if (!entrada) return;
+    this.tituloActivo.set(i);
+    const dom = this.editor.view.nodeDOM(entrada.pos);
+    if (dom instanceof HTMLElement) {
+      dom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    /* El cursor se pone al principio del título (`pos + 1` ya es su texto), pero
+       sin el scroll de ProseMirror: sería un salto seco peleándose con el suave
+       que se acaba de lanzar. En una bóveda de solo lectura no se toca el
+       cursor: el editor está apagado y lo único que se quiere es mirar. */
+    if (this.editable()) {
+      this.editor.chain().focus(entrada.pos + 1, { scrollIntoView: false }).run();
+    }
   }
 
   // --- Acciones de formato (toolbar y bubble menu) ---

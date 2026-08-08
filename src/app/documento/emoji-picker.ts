@@ -10,6 +10,8 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
+import { normalizar } from '../core/texto';
+
 /** Un emoji con sus palabras clave (para el buscador). */
 interface Emoji {
   e: string;
@@ -373,15 +375,6 @@ const CATEGORIAS: Categoria[] = [
 ];
 
 const TODOS: Emoji[] = CATEGORIAS.flatMap((c) => c.emojis);
-
-/** Normaliza para buscar sin acentos ni mayúsculas. */
-function normalizar(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '') // quita diacríticos (acentos)
-    .toLowerCase()
-    .trim();
-}
 
 /**
  * Selector de emojis para el icono del documento, con buscador por nombre.

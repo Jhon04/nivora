@@ -376,10 +376,20 @@ mat-nav-list {
   min-width: 0;
 }
 
+/* Zona del documento por debajo de la barra de herramientas. `position: relative`
+   porque el panel del índice flota dentro, pegado a su esquina. */
+.pane-cuerpo {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
 .pane-scroll {
   flex: 1 1 auto;
   /* min-height:0 es lo que permite que un hijo flex encoja y muestre scroll. */
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
   overflow-x: hidden;
 }
