@@ -672,7 +672,7 @@
       <!-- Zona con scroll propio: la barra de arriba queda fuera, así la barra
            de desplazamiento empieza por debajo y no la cruza. El scroll se le
            pasa al editor, que es quien sabe qué título toca resaltar. -->
-      <div class="pane-scroll" (scroll)="ed.alScroll($event)">
+      <div class="pane-scroll" (scroll)="ed.alScroll()">
       <!-- Portada del documento -->
       @if (coverUrl(); as cov) {
         <div class="cover-wrap">

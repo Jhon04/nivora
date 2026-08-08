@@ -115,6 +115,16 @@ interface SlashPos {
  */
 const HOLGURA_ACTIVO = 24;
 
+/** Aire que se deja por encima del título al saltar, para que se vea que empieza. */
+const MARGEN_SALTO = 20;
+
+/**
+ * Cuánto se da por durado un salto. Mientras tanto no se recalcula la sección
+ * activa: ya se sabe cuál es, y medir el DOM en cada fotograma de la animación
+ * puede llegar a cortarla.
+ */
+const DURACION_SALTO = 700;
+
 @Component({
   selector: 'app-editor',
   imports: [TiptapEditorDirective, TiptapBubbleMenuDirective, OverlayModule],
@@ -174,12 +184,11 @@ export class EditorComponent implements OnDestroy {
    * a medir el DOM en cada tecla para saber si sigue siendo el mismo título.
    */
   readonly tituloActivo = signal(0);
-  /**
-   * Contenedor con scroll donde vive el editor. Lo trae el propio evento de
-   * scroll, así que el editor no necesita saber nada del layout de la app.
-   */
+  /** Contenedor con scroll donde vive el editor (ver `contenedorDeScroll`). */
   private contenedorScroll: HTMLElement | null = null;
   private recalculoPedido = false;
+  /** Hasta cuándo hay un salto en curso (ver `alScroll`). */
+  private finDelSalto = 0;
 
   /** URL del original a tamaño completo en el visor (lightbox), o null. */
   protected readonly lightbox = signal<string | null>(null);
@@ -473,12 +482,36 @@ export class EditorComponent implements OnDestroy {
   }
 
   /**
+   * El ancestro con scroll donde vive el editor (en la app, `.pane-scroll`).
+   *
+   * Se busca subiendo por el DOM en vez de esperar a que llegue un evento de
+   * scroll: si no, saltar a una sección antes de haber desplazado la nota a mano
+   * no encontraba contra qué medir. Se recuerda mientras siga montado.
+   */
+  private contenedorDeScroll(): HTMLElement | null {
+    if (this.contenedorScroll?.isConnected) return this.contenedorScroll;
+    let el = this.editor.view.dom.parentElement;
+    while (el) {
+      const desborde = getComputedStyle(el).overflowY;
+      if (desborde === 'auto' || desborde === 'scroll') {
+        this.contenedorScroll = el;
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  /**
    * Llamar desde el contenedor con scroll que envuelve al editor. Se limita a
    * un recálculo por fotograma: el evento de scroll llega decenas de veces por
    * segundo y medir posiciones fuerza al navegador a recalcular el layout.
    */
-  alScroll(ev: Event): void {
-    this.contenedorScroll = ev.target as HTMLElement;
+  alScroll(): void {
+    /* Durante un salto no se recalcula nada: ya se sabe a qué sección se va, y
+       medir el DOM en cada fotograma de la animación puede llegar a cortarla.
+       Vencido el plazo, el seguimiento normal vuelve solo. */
+    if (performance.now() < this.finDelSalto) return;
     if (this.recalculoPedido) return;
     this.recalculoPedido = true;
     requestAnimationFrame(() => {
@@ -490,7 +523,7 @@ export class EditorComponent implements OnDestroy {
   /** Sección activa = el último título que ya ha pasado por el borde de arriba. */
   private recalcularActivo(): void {
     const entradas = this.indice();
-    const contenedor = this.contenedorScroll;
+    const contenedor = this.contenedorDeScroll();
     if (entradas.length === 0 || !contenedor) {
       this.tituloActivo.set(0);
       return;
@@ -507,22 +540,47 @@ export class EditorComponent implements OnDestroy {
     this.tituloActivo.set(activo);
   }
 
-  /** Clic en una entrada del índice: lleva la vista —y el cursor— a esa sección. */
+  /**
+   * Clic en una entrada del índice: lleva la vista —y el cursor— a esa sección.
+   *
+   * El orden importa y es al revés de lo que parece natural. **Primero el
+   * cursor**: al enfocar, el navegador arrastra la vista hasta el punto de
+   * inserción por su cuenta, y `scrollIntoView: false` solo frena el scroll de
+   * ProseMirror, no el del propio navegador. Poniéndolo después, ese tirón se
+   * comía el desplazamiento que acabábamos de pedir. Ahora el tirón ocurre
+   * primero y el desplazamiento nuestro es la última palabra.
+   *
+   * Y se desplaza **el contenedor**, no `dom.scrollIntoView()`: así se sabe
+   * exactamente dónde queda el título, sin depender de cómo interprete cada
+   * motor `block: 'start'` ni de que el elemento tenga o no `scroll-margin`.
+   */
   irATitulo(i: number): void {
     const entrada = this.indice()[i];
     if (!entrada) return;
     this.tituloActivo.set(i);
+
     const dom = this.editor.view.nodeDOM(entrada.pos);
-    if (dom instanceof HTMLElement) {
-      dom.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-    /* El cursor se pone al principio del título (`pos + 1` ya es su texto), pero
-       sin el scroll de ProseMirror: sería un salto seco peleándose con el suave
-       que se acaba de lanzar. En una bóveda de solo lectura no se toca el
-       cursor: el editor está apagado y lo único que se quiere es mirar. */
+    if (!(dom instanceof HTMLElement)) return;
+
+    // En una bóveda de solo lectura no se toca el cursor: el editor está
+    // apagado y lo único que se quiere es mirar.
     if (this.editable()) {
       this.editor.chain().focus(entrada.pos + 1, { scrollIntoView: false }).run();
     }
+
+    const contenedor = this.contenedorDeScroll();
+    if (!contenedor) {
+      dom.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+
+    const desplazamiento =
+      dom.getBoundingClientRect().top - contenedor.getBoundingClientRect().top;
+    this.finDelSalto = performance.now() + DURACION_SALTO;
+    contenedor.scrollTo({
+      top: contenedor.scrollTop + desplazamiento - MARGEN_SALTO,
+      behavior: 'smooth',
+    });
   }
 
   // --- Acciones de formato (toolbar y bubble menu) ---

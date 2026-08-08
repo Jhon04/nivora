@@ -134,7 +134,7 @@ describe('Panel del índice · saltar y resaltar', () => {
 
   function desplazarA(top: number): Promise<void> {
     contenedor.scrollTop = top;
-    comp.alScroll({ target: contenedor } as unknown as Event);
+    comp.alScroll();
     return dosFotogramas();
   }
 
@@ -184,6 +184,27 @@ describe('Panel del índice · saltar y resaltar', () => {
     expect(distancia(2)).toBeGreaterThanOrEqual(0);
     expect(distancia(2)).toBeLessThan(60);
     expect(comp.tituloActivo()).toBe(2);
+  });
+
+  it('se puede saltar de una sección a otra las veces que haga falta', async () => {
+    /* Regresion: el primer salto iba bien y los siguientes se quedaban a medias
+       o se iban a la primera seccion. Al enfocar, el navegador arrastra la vista
+       hasta el cursor por su cuenta; si eso pasa DESPUES de pedir el
+       desplazamiento, se lo come. */
+    for (const i of [1, 2, 1]) {
+      comp.irATitulo(i);
+      // Se espera a que la animación converja, venga desde arriba o desde abajo.
+      for (let f = 0; f < 180 && (distancia(i) > 40 || distancia(i) < -2); f++) {
+        await dosFotogramas();
+      }
+
+      expect(distancia(i))
+        .withContext(`salto al titulo ${i}`)
+        .toBeLessThan(40);
+      expect(distancia(i))
+        .withContext(`el titulo ${i} no puede quedar por encima del borde`)
+        .toBeGreaterThanOrEqual(-2);
+    }
   });
 
   it('el cursor se planta en el título al que se salta', () => {
