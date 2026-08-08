@@ -48,6 +48,16 @@ const CLASE: &str = env!("CARGO_PKG_NAME");
 /// Fuera de AppImage no hace nada: en `.deb` ya se encarga dpkg, y en
 /// desarrollo no queremos ensuciar el menú del usuario con builds de prueba.
 pub fn integrar(app: &AppHandle) {
+    /* En desarrollo, ni tocarlo. La comprobacion de `APPIMAGE` deberia bastar,
+       pero basta con que esa variable llegue heredada del entorno para que un
+       `tauri dev` escriba la entrada del menu apuntando a `target/debug/nivora`.
+       Y ese binario, sin el servidor de desarrollo detras, solo sabe enseñar
+       «Could not connect to localhost»: el usuario se queda sin poder abrir su
+       app desde el menu y sin saber por que. Paso de verdad. */
+    if cfg!(debug_assertions) {
+        return;
+    }
+
     // `APPIMAGE` la exporta el propio runtime del AppImage y trae la ruta
     // absoluta del fichero. Es la unica forma fiable de saber que estamos
     // dentro de uno: el binario no puede averiguarlo por si mismo.
