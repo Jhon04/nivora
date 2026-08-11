@@ -94,6 +94,27 @@
     background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 16%, transparent);
     color: var(--mat-sys-primary, #3b82f6);
   }
+
+  /* `all: unset` deja el botón desactivado con la misma pinta que el activo, y
+     lo único que avisaría de que no hace nada sería que no pasa nada. */
+  &[disabled] {
+    cursor: default;
+    opacity: 0.35;
+
+    &:hover {
+      background: none;
+    }
+  }
+}
+
+/* Tamaño del texto: [ − ] [ 12 ] [ + ]. */
+.tb-tamano-valor {
+  /* Ancho fijo para dos cifras: sin él, la barra entera se recoloca al pasar
+     de 8 a 10 o de 20 a 8. */
+  min-width: 34px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.16));
 }
 
 .tb-insertar {
@@ -154,6 +175,19 @@
 
   &.hl {
     background: tc.resaltado();
+  }
+}
+
+/* Desplegable de tamaños: reutiliza .menu-titulos y solo lo estrecha, porque
+   sus entradas son un número de dos cifras y no una fila con icono y texto.
+   Puede vivir aquí aunque el CDK lo porte fuera: el `ng-template` se declara en
+   esta plantilla, así que sus nodos llevan el `_ngcontent` de aquí. */
+.menu-tamanos {
+  min-width: 0;
+
+  .menu-item {
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
   }
 }
 

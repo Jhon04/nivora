@@ -356,75 +356,10 @@
 }
 
 /* Aviso de notas bloqueadas restauradas tras una manipulación. */
+/* Ambar: algo pasó y conviene que te enteres. La caja (.aviso-banda) es
+   global, en styles.scss: la comparten los tres avisos del panel. */
 .aviso-restauradas {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 10px 12px 0;
-  padding: 11px 13px;
-  border-radius: 9px;
-  font-size: 0.82rem;
-  line-height: 1.4;
   background: color-mix(in srgb, #f59e0b 20%, transparent);
-
-  >.material-icons {
-    font-size: 20px;
-    flex: 0 0 auto;
-    margin-top: 1px;
-  }
-
-  button {
-    all: unset;
-    cursor: pointer;
-    flex: 0 0 auto;
-    padding: 3px;
-    border-radius: 50%;
-    opacity: 0.6;
-
-    .material-icons {
-      font-size: 17px;
-    }
-
-    &:hover {
-      opacity: 1;
-      background: var(--capa-hover-fuerte);
-    }
-  }
-}
-
-/* Misma caja que .aviso-restauradas pero en azul: esto es información útil,
-   no algo que haya ido mal. */
-.aviso-actualizacion {
-  @extend .aviso-restauradas;
-
-  align-items: center;
-  background: color-mix(in srgb, #3b82f6 20%, transparent);
-
-  /* Anidado a propósito: de `.aviso-restauradas` viene un `button` redondo (la
-     ✕ de cerrar) que, por especificidad, le ganaba a `.aviso-accion` y dejaba
-     este botón con el hover circular. Aquí sí gana. */
-  .aviso-accion {
-    all: unset;
-    cursor: pointer;
-    flex: 0 0 auto;
-    padding: 5px 13px;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    font-weight: 600;
-    background: color-mix(in srgb, #3b82f6 55%, transparent);
-
-    &:hover {
-      background: color-mix(in srgb, #3b82f6 75%, transparent);
-    }
-  }
-}
-
-.aviso-restauradas-txt {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-  flex: 1 1 auto;
 }
 
 .aviso-restauradas-lista {
@@ -438,21 +373,7 @@
 
 /* Bóveda cuyo repositorio ya no está a nuestro alcance. */
 .aviso-sin-acceso {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  margin: 10px 12px 0;
-  padding: 11px 13px;
-  border-radius: 9px;
-  font-size: 0.82rem;
-  line-height: 1.4;
   background: color-mix(in srgb, var(--mat-sys-error, #b3261e) 13%, transparent);
-
-  >.material-icons {
-    font-size: 20px;
-    flex: 0 0 auto;
-    margin-top: 1px;
-  }
 }
 
 .aviso-sin-acceso-botones {

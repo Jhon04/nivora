@@ -1,0 +1,42 @@
+<!-- Hay versión nueva. No se instala sola: descargar y reiniciar en mitad de una
+     frase sería peor que el problema que resuelve, así que decide el usuario. -->
+@if (visible()) {
+<div class="aviso-banda aviso-actualizacion">
+  <span class="material-icons">system_update_alt</span>
+  <div class="aviso-texto">
+    @switch (actualizaciones.estado()) {
+    @case ('disponible') {
+    <strong>Nivora {{ actualizaciones.versionNueva() }} está disponible</strong>
+    <span>Se descarga e instala sola; la app se reiniciará al terminar.</span>
+    }
+    @case ('descargando') {
+    <strong>Descargando Nivora {{ actualizaciones.versionNueva() }}…</strong>
+    <span>
+      {{ actualizaciones.progreso() !== null ? actualizaciones.progreso() + '%' : 'Preparando…' }}
+    </span>
+    }
+    @case ('lista') {
+    <strong>Actualización instalada</strong>
+    <span>Reiniciando…</span>
+    }
+    @case ('error') {
+    <strong>No se pudo actualizar</strong>
+    <span>{{ actualizaciones.error() }}</span>
+    }
+    }
+  </div>
+
+  @if (actualizaciones.estado() === 'disponible') {
+  <button type="button" class="aviso-accion" (click)="actualizar.emit()">Actualizar</button>
+  }
+
+  <!-- Mientras baja o va a reiniciar no se puede descartar: ya no hay marcha
+       atrás que ofrecer. -->
+  @if (sePuedeDescartar()) {
+  <button type="button" class="aviso-cerrar" (click)="actualizaciones.descartar()"
+    aria-label="Descartar aviso de actualización">
+    <span class="material-icons">close</span>
+  </button>
+  }
+</div>
+}

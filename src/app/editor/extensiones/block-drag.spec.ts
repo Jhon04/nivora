@@ -656,10 +656,17 @@ describe('BlockDrag · el handle sigue al desplazar', () => {
    * no caer dentro de ninguno y el test mediría otra cosa.
    */
   const bloqueDelHandle = (): Element | undefined => {
-    const t = handle().getBoundingClientRect().top;
-    return Array.from(pm().children).find(
-      (n) => Math.abs(n.getBoundingClientRect().top + 1 - t) < 1.5,
-    );
+    /* Por el CENTRO del handle y no por su borde de arriba: el handle se alinea
+       con la primera línea del bloque, salvo que el bloque sea más bajo que él
+       —una línea de texto normal lo es—, en cuyo caso se centra. Mirando el
+       centro da igual cuál de las dos reglas aplique. */
+    const h = handle().getBoundingClientRect();
+    const centro = h.top + h.height / 2;
+    return Array.from(pm().children).find((n) => {
+      const r = n.getBoundingClientRect();
+      // Holgura para el margen que hay entre bloques.
+      return centro >= r.top - 4 && centro <= r.bottom + 4;
+    });
   };
 
   it('se recoloca sobre el bloque que queda debajo del ratón', () => {

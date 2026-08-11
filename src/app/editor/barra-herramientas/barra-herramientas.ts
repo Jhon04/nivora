@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { DragScrollDirective } from '../../shared/drag-scroll';
 import { POSICIONES_MENU } from '../../shared/posiciones-menu';
 import { EditorComponent } from '../editor';
+import { TAMANO_MAXIMO, TAMANO_MINIMO, TAMANOS } from '../tamano-texto';
 
 /**
  * Barra de herramientas de la nota (negrita, títulos, listas, colores…).
@@ -27,12 +28,26 @@ export class BarraHerramientas {
   /** El editor sobre el que actúan los botones. */
   readonly ed = input.required<EditorComponent>();
 
+  /**
+   * El cursor está en el título de la nota, que es un `<input>` aparte con su
+   * tamaño fijo, no texto del editor. Apaga el control de tamaño: si no, los
+   * botones actuarían sobre lo último que hubiera seleccionado en el CUERPO de
+   * la nota, que ni siquiera está a la vista.
+   */
+  readonly enTituloDeNota = input(false);
+
   /** Desplegables de la barra. */
   protected readonly menuTitulos = signal(false);
   protected readonly menuListas = signal(false);
   protected readonly menuAlinear = signal(false);
   protected readonly menuColorTexto = signal(false);
   protected readonly menuResaltado = signal(false);
+  protected readonly menuTamano = signal(false);
+
+  /** Escala de tamaños de letra y sus topes (ver tamano-texto.ts). */
+  protected readonly tamanos = TAMANOS;
+  protected readonly tamanoMinimo = TAMANO_MINIMO;
+  protected readonly tamanoMaximo = TAMANO_MAXIMO;
 
   /** Popover de enlace: abierto y URL que se está escribiendo. */
   protected readonly enlaceAbierto = signal(false);
@@ -49,6 +64,27 @@ export class BarraHerramientas {
   ];
 
   protected readonly posicionesMenu = POSICIONES_MENU;
+
+  /**
+   * Aquí el tamaño no se elige: o es un título (lo manda su nivel) o es el
+   * título de la nota (lo manda su CSS).
+   */
+  protected sinTamano(): boolean {
+    return this.enTituloDeNota() || this.ed().nivelTitulo() > 0;
+  }
+
+  /** Lo que se lee en el recuadro del tamaño. */
+  protected etiquetaTamano(): string {
+    if (this.enTituloDeNota()) return '—';
+    const nivel = this.ed().nivelTitulo();
+    return nivel ? `H${nivel}` : String(this.ed().tamanoActual());
+  }
+
+  protected tituloTamano(): string {
+    if (this.enTituloDeNota()) return 'El título de la nota lleva su propio tamaño';
+    if (this.ed().nivelTitulo()) return 'El tamaño de un título lo da su nivel; cámbialo en H ▾';
+    return 'Tamaño del texto';
+  }
 
   /** Abre el popover con la URL que ya tuviera el enlace bajo el cursor. */
   protected abrirEnlace(urlActual: string): void {
@@ -70,6 +106,7 @@ export class BarraHerramientas {
     this.menuAlinear.set(false);
     this.menuColorTexto.set(false);
     this.menuResaltado.set(false);
+    this.menuTamano.set(false);
     this.enlaceAbierto.set(false);
   }
 }

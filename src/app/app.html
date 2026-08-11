@@ -16,9 +16,9 @@
          La bóveda NO se borra sola: puede tener notas tuyas, y borrar ficheros
          porque un tercero pulsó algo en GitHub sería una puerta trasera. -->
     @if (bovedas.sinAcceso()) {
-    <div class="aviso-sin-acceso">
+    <div class="aviso-banda aviso-sin-acceso">
       <span class="material-icons">link_off</span>
-      <div class="aviso-restauradas-txt">
+      <div class="aviso-texto">
         <strong>Ya no tienes acceso a este repositorio</strong>
         <span>
           «{{ bovedas.activa()?.nombre }}» se queda solo en este equipo y ha dejado de
@@ -39,9 +39,9 @@
          buscarlo. -->
     @if (sincro.restauradas(); as tocadas) {
     @if (tocadas.length) {
-    <div class="aviso-restauradas">
+    <div class="aviso-banda aviso-restauradas">
       <span class="material-icons">lock_reset</span>
-      <div class="aviso-restauradas-txt">
+      <div class="aviso-texto">
         <strong>
           {{ tocadas.length === 1
           ? 'Se restauró una nota bloqueada'
@@ -57,60 +57,20 @@
           }
         </span>
       </div>
-      <button type="button" (click)="descartarRestauradas()" aria-label="Descartar aviso">
+      <button type="button" class="aviso-cerrar" (click)="descartarRestauradas()"
+        aria-label="Descartar aviso">
         <span class="material-icons">close</span>
       </button>
     </div>
     }
     }
 
-    <!-- Hay versión nueva. No se instala sola: descargar y reiniciar en mitad
-         de una frase sería peor que el problema que resuelve, así que decide
-         el usuario. -->
-    @if (actualizaciones.estado() !== 'inactivo' && actualizaciones.estado() !== 'buscando') {
-    <div class="aviso-actualizacion">
-      <span class="material-icons">system_update_alt</span>
-      <div class="aviso-restauradas-txt">
-        @switch (actualizaciones.estado()) {
-        @case ('disponible') {
-        <strong>Nivora {{ actualizaciones.versionNueva() }} está disponible</strong>
-        <span>Se descarga e instala sola; la app se reiniciará al terminar.</span>
-        }
-        @case ('descargando') {
-        <strong>Descargando Nivora {{ actualizaciones.versionNueva() }}…</strong>
-        <span>
-          {{ actualizaciones.progreso() !== null
-          ? actualizaciones.progreso() + '%'
-          : 'Preparando…' }}
-        </span>
-        }
-        @case ('lista') {
-        <strong>Actualización instalada</strong>
-        <span>Reiniciando…</span>
-        }
-        @case ('error') {
-        <strong>No se pudo actualizar</strong>
-        <span>{{ actualizaciones.error() }}</span>
-        }
-        }
-      </div>
-      @if (actualizaciones.estado() === 'disponible') {
-      <button type="button" class="aviso-accion" (click)="actualizarAhora()">
-        Actualizar
-      </button>
-      }
-      @if (actualizaciones.estado() !== 'descargando' && actualizaciones.estado() !== 'lista') {
-      <button type="button" (click)="actualizaciones.descartar()" aria-label="Descartar aviso de actualización">
-        <span class="material-icons">close</span>
-      </button>
-      }
-    </div>
-    }
+    <app-aviso-actualizacion (actualizar)="actualizarAhora()" />
 
     @if (actual(); as doc) {
     <!-- Barra de herramientas: recibe el editor y actúa sobre él. Se queda
          fuera del contenedor con scroll, así siempre está arriba. -->
-    <app-barra-herramientas [ed]="ed" />
+    <app-barra-herramientas [ed]="ed" [enTituloDeNota]="tituloEnfocado()" />
 
     <!-- Documento y su índice, uno al lado del otro y por debajo de la barra
            de herramientas (que cruza los dos). -->
@@ -206,7 +166,10 @@
           </p>
           }
 
+          <!-- El foco se avisa a la barra: mientras se escribe aquí, el control
+               de tamaño no debe actuar sobre el cuerpo de la nota. -->
           <input class="titulo" [ngModel]="doc.titulo" (ngModelChange)="onTitulo($event)" [readonly]="!puedeEditar()"
+            (focus)="tituloEnfocado.set(true)" (blur)="tituloEnfocado.set(false)"
             placeholder="Sin título" />
 
           <!-- Etiquetas del documento -->

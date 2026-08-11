@@ -46,6 +46,47 @@
 
   <span class="tb-sep"></span>
 
+  <!-- Tamaño del texto: [ − ] [ 12 ] [ + ]. Los botones recorren la misma
+       escala que el desplegable del número (ver tamano-texto.ts). -->
+  <div class="tb-group tb-tamano">
+    <button type="button" class="tb-btn" (click)="ed().bajarTamano()"
+      [disabled]="sinTamano() || ed().tamanoActual() <= tamanoMinimo"
+      title="Reducir el tamaño del texto" aria-label="Reducir el tamaño del texto">
+      <span class="material-icons">remove</span>
+    </button>
+
+    <!-- En un titulo enseña su nivel, y en el titulo de la nota una raya: en
+         los dos casos el tamaño no se elige aqui, y decir "12" seria mentir. -->
+    <button type="button" class="tb-btn tb-tamano-valor" cdkOverlayOrigin #origenTamano="cdkOverlayOrigin"
+      [class.activo]="menuTamano()" [disabled]="sinTamano()" (click)="menuTamano.set(!menuTamano())"
+      [title]="tituloTamano()">
+      {{ etiquetaTamano() }}
+    </button>
+
+    <button type="button" class="tb-btn" (click)="ed().subirTamano()"
+      [disabled]="sinTamano() || ed().tamanoActual() >= tamanoMaximo"
+      title="Aumentar el tamaño del texto" aria-label="Aumentar el tamaño del texto">
+      <span class="material-icons">add</span>
+    </button>
+  </div>
+
+  <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origenTamano"
+    [cdkConnectedOverlayOpen]="menuTamano()" [cdkConnectedOverlayPositions]="posicionesMenu"
+    [cdkConnectedOverlayPush]="true" [cdkConnectedOverlayHasBackdrop]="true"
+    cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop" (backdropClick)="menuTamano.set(false)"
+    (detach)="menuTamano.set(false)">
+    <div class="menu-titulos menu-tamanos">
+      @for (t of tamanos; track t) {
+      <button type="button" class="menu-item" [class.activo]="ed().tamanoActual() === t"
+        (click)="ed().setTamano(t); menuTamano.set(false)">
+        {{ t }}
+      </button>
+      }
+    </div>
+  </ng-template>
+
+  <span class="tb-sep"></span>
+
   <div class="tb-group">
     <button type="button" class="tb-btn" (click)="ed().toggleBold()" [class.activo]="ed().isActive('bold')"
       title="Negrita">

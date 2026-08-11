@@ -1,0 +1,23 @@
+/* La caja (.aviso-banda, .aviso-texto, .aviso-cerrar) está en styles.scss: la
+   comparten los tres avisos del panel. Aquí solo va lo que distingue a este.
+
+   Azul y no ámbar: esto es información útil, no algo que haya ido mal. */
+.aviso-actualizacion {
+  align-items: center;
+  background: color-mix(in srgb, #3b82f6 20%, transparent);
+}
+
+.aviso-accion {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: 5px 13px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  background: color-mix(in srgb, #3b82f6 55%, transparent);
+
+  &:hover {
+    background: color-mix(in srgb, #3b82f6 75%, transparent);
+  }
+}

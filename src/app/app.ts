@@ -28,6 +28,7 @@ import { TemaService } from './core/tema.service';
 import { SincroService } from './core/sincro.service';
 import { BovedasService } from './core/bovedas.service';
 import { ActualizacionesService } from './core/actualizaciones.service';
+import { AvisoActualizacion } from './shared/aviso-actualizacion/aviso-actualizacion';
 import { ConfiguracionDialog } from './shared/configuracion/configuracion';
 import { bgTag, fgTag } from './core/color-etiqueta';
 import {
@@ -51,6 +52,7 @@ type EstadoGuardado = 'idle' | 'pendiente' | 'guardando' | 'guardado' | 'error';
   selector: 'app-root',
   imports: [
     FormsModule,
+    AvisoActualizacion,
     BarraHerramientas,
     BarraLateral,
     EditorComponent,
@@ -166,6 +168,13 @@ export class App implements OnInit {
 
   /** Etiqueta que se está escribiendo en el documento abierto. */
   protected readonly nuevaEtiqueta = signal('');
+
+  /**
+   * El cursor está en el título de la nota, que es un `<input>` aparte y no
+   * texto del editor. Lo mira la barra de herramientas: sin esto, tocar el
+   * tamaño mientras se escribe el título se lo aplicaba al CUERPO de la nota.
+   */
+  protected readonly tituloEnfocado = signal(false);
 
   /** Sidebar colapsada (solo iconos). Arranca como la dejó el usuario. */
   protected readonly sidebarColapsada = signal(this.prefs.obtener().sidebarColapsada);

@@ -267,9 +267,9 @@ describe('App · aviso de actualización', () => {
       '.aviso-accion',
     )!;
 
-    /* El aviso hereda de `.aviso-restauradas`, que trae un `button` redondo (la
-       ✕ de cerrar). Por especificidad le ganaba a `.aviso-accion` y dejaba este
-       botón con el hover circular. */
+    /* La ✕ de descartar se pintaba como `button` suelto dentro de la banda, y
+       por especificidad le ganaba a `.aviso-accion`: este botón salía con el
+       hover circular. Ahora la ✕ lleva su propia clase y no alcanza a nadie. */
     expect(getComputedStyle(boton).borderRadius).toBe('4px');
   });
 });

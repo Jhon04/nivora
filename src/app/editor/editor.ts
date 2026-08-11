@@ -15,7 +15,7 @@ import { Editor, JSONContent } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
-import { TextStyle } from '@tiptap/extension-text-style';
+import { FontSize, TextStyle } from '@tiptap/extension-text-style';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { ResolvedPos } from '@tiptap/pm/model';
 import { Selection, TextSelection } from '@tiptap/pm/state';
@@ -37,6 +37,7 @@ import { BlockDrag } from './extensiones/block-drag';
 import { BloqueLista, TipoLista } from './extensiones/lista-plana';
 import { ColorAdaptable, ResaltadoAdaptable } from './extensiones/color-adaptable';
 import { EntradaIndice, extraerIndice } from './indice';
+import { escalon, TAMANO_BASE, UNIDAD } from './tamano-texto';
 import {
   createSlashCommand,
   EVENTO_IMAGEN,
@@ -238,6 +239,8 @@ export class EditorComponent implements OnDestroy {
         BloqueLista,
         TextAlign.configure({ types: ['heading', 'paragraph'] }),
         TextStyle,
+        // Tamaño de letra por texto seleccionado (ver tamano-texto.ts).
+        FontSize,
         ColorAdaptable,
         ResaltadoAdaptable.configure({ multicolor: true }),
         Secreto,
@@ -672,6 +675,85 @@ export class EditorComponent implements OnDestroy {
   setResaltado(color: string): void { this.editor.chain().focus().setHighlight({ color }).run(); }
   quitarResaltado(): void { this.editor.chain().focus().unsetHighlight().run(); }
   resaltadoActual(): string { return (this.editor.getAttributes('highlight')['color'] as string) ?? ''; }
+
+  // --- Tamaño del texto ---
+
+  /**
+   * Nivel del título que toca la selección (1–4), o 0 si no toca ninguno.
+   *
+   * El tamaño de un título lo da su nivel, así que el control de tamaño se
+   * apaga ahí. Sin esto la escala miente: poner 12 —el tamaño de base— QUITA la
+   * marca, con lo que el título recupera su tamaño de CSS y se hace grande,
+   * mientras que 14 lo deja en 18.7 px y lo encoge. Números que suben con el
+   * texto haciéndose más pequeño.
+   *
+   * Y el fondo del asunto: el nivel es lo que leen el índice y el plegado. Un
+   * H1 de 14 pt seguiría siendo un H1 para ellos — el documento diría una cosa
+   * y la pantalla otra.
+   *
+   * Se mira toda la selección y no solo dónde está el cursor: seleccionar un
+   * título y el párrafo de debajo entraría por la misma puerta.
+   */
+  nivelTitulo(): number {
+    const { from, to } = this.editor.state.selection;
+    let nivel = 0;
+    this.editor.state.doc.nodesBetween(from, to, (nodo) => {
+      if (!nivel && nodo.type.name === 'heading') nivel = (nodo.attrs['level'] as number) || 1;
+    });
+    return nivel;
+  }
+
+  /**
+   * Tamaño en puntos de lo que está seleccionado. Un texto sin marca de tamaño
+   * devuelve el de base: es el que se ve, aunque no esté escrito en la nota.
+   */
+  tamanoActual(): number {
+    const bruto = this.editor.getAttributes('textStyle')['fontSize'] as string | undefined;
+    const puntos = bruto ? Number.parseInt(bruto, 10) : Number.NaN;
+    return Number.isFinite(puntos) ? puntos : TAMANO_BASE;
+  }
+
+  /**
+   * Pone el tamaño a la selección; **sin selección, al párrafo entero**.
+   *
+   * Un tamaño es una marca del texto, así que sin selección solo afectaría a lo
+   * que se escribiese a continuación: pulsar el botón no cambiaría nada a la
+   * vista y parecería roto. Al bloque entero es lo que se espera de un control
+   * que se llama «tamaño del texto» estando el cursor dentro de un párrafo.
+   *
+   * El cursor vuelve donde estaba: seleccionar el bloque es el medio para
+   * aplicar la marca, no algo que el usuario haya pedido.
+   */
+  setTamano(puntos: number): void {
+    // Freno de fondo: la barra ya apaga el control sobre un título, pero basta
+    // con que se escape una llamada para dejar la nota diciendo una cosa y
+    // enseñando otra (ver `nivelTitulo`).
+    if (this.nivelTitulo()) return;
+
+    const { selection } = this.editor.state;
+    const { empty, from } = selection;
+    const cadena = this.editor.chain().focus();
+
+    if (empty) {
+      cadena.setTextSelection({ from: selection.$from.start(), to: selection.$from.end() });
+    }
+    /* El tamaño de base no se escribe en la nota: se quita la marca. Así un
+       texto que vuelve a su tamaño normal queda como el que nunca lo tocó, y no
+       se acumulan marcas que no dicen nada. */
+    if (puntos === TAMANO_BASE) cadena.unsetFontSize();
+    else cadena.setFontSize(`${puntos}${UNIDAD}`);
+
+    if (empty) cadena.setTextSelection(from);
+    cadena.run();
+  }
+
+  subirTamano(): void {
+    this.setTamano(escalon(this.tamanoActual(), 1));
+  }
+
+  bajarTamano(): void {
+    this.setTamano(escalon(this.tamanoActual(), -1));
+  }
 
   isActive(nombreOAtributos: string | Record<string, unknown>, attrs?: Record<string, unknown>): boolean {
     return typeof nombreOAtributos === 'string'

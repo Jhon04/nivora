@@ -334,6 +334,62 @@ body {
   }
 }
 
+/* Banda de aviso que cruza el panel: sin acceso al repositorio, notas
+   restauradas, versión nueva. Es la misma caja para los tres y solo cambia el
+   color de fondo, que pone cada uno.
+
+   Global porque uno de ellos vive ya en su propio componente
+   (shared/aviso-actualizacion) y los otros dos en la plantilla de la app. */
+.aviso-banda {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 12px 0;
+  padding: 11px 13px;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  line-height: 1.4;
+
+  /* El icono de la izquierda. Directo, para no alcanzar los que van dentro de
+     los botones del propio aviso. */
+  > .material-icons {
+    font-size: 20px;
+    flex: 0 0 auto;
+    margin-top: 1px;
+  }
+}
+
+/* Columna de texto del aviso (título + explicación). */
+.aviso-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+/* La ✕ de descartar. Lleva clase propia y no se estila como `button` suelto
+   dentro de la banda: así no alcanza a los demás botones del aviso —los de
+   «sin acceso» son mat-stroked-button— ni gana por especificidad al botón de
+   acción, que era lo que obligaba a anidarlo para poder pintarlo. */
+.aviso-cerrar {
+  all: unset;
+  cursor: pointer;
+  flex: 0 0 auto;
+  padding: 3px;
+  border-radius: 50%;
+  opacity: 0.6;
+
+  .material-icons {
+    font-size: 17px;
+  }
+
+  &:hover {
+    opacity: 1;
+    background: var(--capa-hover-fuerte);
+  }
+}
+
 /* Aviso de «aquí no puedes escribir». Global por lo mismo: sale en la barra
    lateral (bóveda de solo lectura) y sobre el documento (nota bloqueada). */
 .aviso-lectura {
@@ -358,7 +414,14 @@ body {
 .ProseMirror {
   outline: none;
   line-height: 1.65;
-  font-size: 1rem;
+  /* Tamaño del texto que no lleva ninguno puesto, en PUNTOS: es la unidad de
+     los procesadores de texto y la que enseña el control de la barra (ver
+     editor/tamano-texto.ts, donde está el porqué). 12 pt son 16 px, o sea
+     exactamente el `1rem` que había aquí antes: las notas ya escritas no
+     cambian de tamaño.
+     Si se cambia el número, hay que cambiar TAMANO_BASE: si no, la barra dice
+     uno y la nota enseña otro. */
+  font-size: 12pt;
   max-width: 100%;
   /* Que el texto largo (URLs, palabras sin espacios) se parta en vez de
      ensanchar el editor y provocar scroll lateral. */
@@ -384,6 +447,22 @@ body {
      tienen que salir del layout del todo, o el índice y el handle de arrastre
      seguirían encontrándolos por sus coordenadas. */
   .plegado-oculto { display: none; }
+
+  /* Cita: una barra a la izquierda, en vez de la sangría de 40 px que traen los
+     navegadores por defecto. Así el texto de la cita sigue alineado con el del
+     resto de la nota —lo que la distingue es la barra, no un salto de margen— y
+     el canalón izquierdo se queda libre para el handle de arrastre. */
+  blockquote {
+    margin-left: 0;
+    margin-right: 0;
+    padding-left: 0.9em;
+    border-left: 3px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.22));
+
+    /* Una cita puede llevar varios párrafos, y el margen que el navegador les
+       pone arriba y abajo despegaría el texto de los extremos de la barra. */
+    > * { margin: 0; }
+    > * + * { margin-top: 0.4em; }
+  }
 
   img {
     max-width: 100%;
