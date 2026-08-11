@@ -2,7 +2,7 @@ import { WritableSignal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { EditorComponent } from './editor';
-import { SLASH_ITEMS, SlashItem } from './slash-command';
+import { SLASH_ITEMS, SlashItem } from './extensiones/slash-command';
 
 /**
  * Las entradas del menú «/» son `protected` (solo las usa su plantilla). El test

@@ -4,8 +4,8 @@ import { MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 
 import { ConfiguracionDialog } from './configuracion';
-import { Boveda, BovedasService } from '../core/bovedas.service';
-import { SecretosService } from '../core/secretos.service';
+import { Boveda, BovedasService } from '../../core/bovedas.service';
+import { SecretosService } from '../../core/secretos.service';
 import {
   EstadoClientId,
   EstadoSincro,
@@ -13,7 +13,7 @@ import {
   ResultadoSincro,
   SincroService,
   UsuarioGitHub,
-} from '../core/sincro.service';
+} from '../../core/sincro.service';
 
 const ANA: UsuarioGitHub = { login: 'ana', nombre: 'Ana', avatar: null };
 

@@ -290,6 +290,70 @@ body {
   }
 }
 
+/* Chip de etiqueta. Global porque lo usan dos componentes distintos: el filtro
+   de la barra lateral y las etiquetas del documento abierto. */
+.chip-tag {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  line-height: 1.6;
+  white-space: nowrap;
+
+  &.activa {
+    font-weight: 600;
+  }
+
+  .chip-usos {
+    opacity: 0.65;
+    font-size: 0.68rem;
+  }
+
+  .chip-x {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    font-size: 0.9rem;
+    line-height: 1;
+    opacity: 0.6;
+
+    &:hover {
+      opacity: 1;
+      background: var(--capa-hover-fuerte);
+    }
+  }
+}
+
+/* Aviso de «aquí no puedes escribir». Global por lo mismo: sale en la barra
+   lateral (bóveda de solo lectura) y sobre el documento (nota bloqueada). */
+.aviso-lectura {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 11px;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--mat-sys-on-surface-variant, rgba(0, 0, 0, 0.65));
+  background: var(--capa-suave);
+
+  .material-icons {
+    font-size: 18px;
+    flex: 0 0 auto;
+  }
+}
+
 /* ---------- Editor Tiptap (ProseMirror) ---------- */
 .ProseMirror {
   outline: none;
@@ -310,7 +374,16 @@ body {
 
   /* Al saltar desde el índice, el título no se queda pegado al borde de arriba:
      se ve que empieza una sección. */
-  h1, h2, h3, h4 { scroll-margin-top: 1.25rem; }
+  h1, h2, h3, h4 {
+    scroll-margin-top: 1.25rem;
+    /* Ancla de la flecha de plegar, que cuelga en el margen izquierdo. */
+    position: relative;
+  }
+
+  /* Bloques escondidos por un título plegado. `display: none` y no `height: 0`:
+     tienen que salir del layout del todo, o el índice y el handle de arrastre
+     seguirían encontrándolos por sus coordenadas. */
+  .plegado-oculto { display: none; }
 
   img {
     max-width: 100%;
@@ -624,6 +697,62 @@ body {
       outline-offset: 2px;
     }
   }
+}
+
+/* Flecha de plegar un título (titulo-plegable.ts). Va dentro del <h1>–<h4>, pero
+   colgando del margen izquierdo, para que el texto del título siga alineado con
+   el del resto de la nota — plegar no sangra nada.
+
+   Columna propia, pegada al texto: el handle de arrastre se aparta a la suya
+   (ver block-drag.ts) para que no se pisen.
+
+   Vive en el contenido del editor, así que es global como el resto de `.ProseMirror`. */
+.plegar-caret {
+  all: unset;
+  box-sizing: border-box;
+  position: absolute;
+  left: -1.45rem;
+  top: 0;
+  /* Alto de una línea del título, para que quede a la altura de la primera y no
+     centrada sobre un título de dos líneas. */
+  height: 1.4em;
+  width: 1.15rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border-radius: 4px;
+  color: light-dark(rgba(0, 0, 0, 0.3), rgba(255, 255, 255, 0.36));
+
+  /* El icono Material mide 24px por defecto y se saldría de la caja. */
+  .material-icons {
+    font-size: 17px;
+    line-height: 1;
+  }
+  user-select: none;
+  /* Desplegado se enseña solo al pasar por encima: si no, la nota se llena de
+     flechas. Plegado se queda siempre, porque es lo único que avisa de que ahí
+     abajo hay algo escondido. */
+  opacity: 0;
+  transition: opacity 0.12s ease, background 0.12s ease, color 0.12s ease;
+
+  &:hover {
+    background: var(--capa-hover);
+    color: light-dark(rgba(0, 0, 0, 0.7), rgba(255, 255, 255, 0.8));
+  }
+
+  &[data-plegado='true'] {
+    opacity: 1;
+    color: var(--mat-sys-primary, #3b82f6);
+  }
+}
+
+.ProseMirror h1:hover .plegar-caret,
+.ProseMirror h2:hover .plegar-caret,
+.ProseMirror h3:hover .plegar-caret,
+.ProseMirror h4:hover .plegar-caret,
+.plegar-caret:focus-visible {
+  opacity: 1;
 }
 
 /* Drag handle propio (block-drag.ts) — reordena con eventos de puntero, no con

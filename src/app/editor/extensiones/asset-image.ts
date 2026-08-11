@@ -1,6 +1,6 @@
 import Image from '@tiptap/extension-image';
 
-import { resolverSrc } from '../core/asset-path';
+import { resolverSrc } from '../../core/asset-path';
 
 /**
  * Igual que la imagen de Tiptap, con dos particularidades:

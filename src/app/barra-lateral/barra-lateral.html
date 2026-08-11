@@ -1,0 +1,194 @@
+<div class="side-head">
+  <div class="side-top">
+    <button type="button" class="hamburguesa" (click)="alternarColapsada.emit()"
+      [title]="colapsada() ? 'Expandir menú' : 'Contraer menú'" aria-label="Contraer o expandir menú">
+      <span class="material-icons">menu</span>
+    </button>
+    @if (!colapsada()) {
+    <!-- Selector de bóveda: es el "dónde estoy" de la app. -->
+    <button type="button" class="btn-boveda" cdkOverlayOrigin #origenBovedas="cdkOverlayOrigin"
+      [disabled]="cambiandoBoveda()" (click)="menuBovedas.set(!menuBovedas())"
+      [title]="bovedas.activa()?.nombre || 'Nivora'">
+      <h1>{{ bovedas.activa()?.nombre || 'Nivora' }}</h1>
+      @if (bovedas.sinAcceso()) {
+      <span class="material-icons btn-boveda-ojo" title="Sin acceso">link_off</span>
+      } @else if (bovedas.soloLectura()) {
+      <span class="material-icons btn-boveda-ojo" title="Solo lectura">visibility</span>
+      }
+      <span class="material-icons btn-boveda-caret">expand_more</span>
+    </button>
+
+    <!-- Dentro del mismo @if que el botón: en Angular 17+ cada bloque de
+           control de flujo es un ámbito propio y `origenBovedas` no se vería
+           desde fuera. No pinta nada aquí (el overlay va portalado). -->
+    <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origenBovedas"
+      [cdkConnectedOverlayOpen]="menuBovedas()" [cdkConnectedOverlayPositions]="posicionesMenu"
+      [cdkConnectedOverlayPush]="true" [cdkConnectedOverlayHasBackdrop]="true"
+      cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop" (backdropClick)="menuBovedas.set(false)"
+      (detach)="menuBovedas.set(false)">
+      <div class="menu-titulos menu-bovedas">
+        @for (b of bovedas.lista(); track b.id) {
+        <button type="button" class="menu-item" [class.activo]="b.id === bovedas.activa()?.id"
+          (click)="elegirBoveda(b.id)">
+          <span class="material-icons menu-ico">
+            {{ b.id === bovedas.activa()?.id ? 'check' : 'folder' }}
+          </span>
+          {{ b.nombre }}
+          @if (b.sinAcceso) {
+          <span class="material-icons menu-ojo" title="Sin acceso">link_off</span>
+          } @else if (b.soloLectura) {
+          <span class="material-icons menu-ojo" title="Solo lectura">visibility</span>
+          }
+        </button>
+        }
+        <div class="menu-sep"></div>
+        <!-- Crear se hace aquí mismo: abrir un diálogo solo para escribir
+               un nombre sería más ceremonia que la propia acción. -->
+        <form class="menu-nueva" (submit)="pedirBovedaNueva(); $event.preventDefault()">
+          <input type="text" [ngModel]="nombreBovedaNueva()" (ngModelChange)="nombreBovedaNueva.set($event)"
+            name="nombreBoveda" placeholder="Nueva bóveda…" aria-label="Nombre de la bóveda nueva" />
+          <button type="submit" [disabled]="!nombreBovedaNueva().trim()" aria-label="Crear bóveda">
+            <span class="material-icons">add</span>
+          </button>
+        </form>
+      </div>
+    </ng-template>
+    }
+  </div>
+
+  @if (colapsada()) {
+  @if (!bovedas.soloLectura()) {
+  <button type="button" class="ico-btn" (click)="nuevoDoc.emit()" title="Nuevo documento">
+    <span class="material-icons">add</span>
+  </button>
+  }
+  } @else {
+  @if (bovedas.soloLectura()) {
+  <p class="aviso-lectura">
+    <span class="material-icons">visibility</span>
+    Solo lectura — no tienes permiso de escritura en este cuaderno
+  </p>
+  } @else {
+  <button mat-flat-button color="primary" (click)="nuevoDoc.emit()">
+    <mat-icon>add</mat-icon> Nuevo
+  </button>
+  }
+
+  <div class="buscador">
+    <span class="material-icons">search</span>
+    <input type="search" [ngModel]="lista.busqueda()" (ngModelChange)="lista.buscar($event)"
+      placeholder="Buscar en documentos…" aria-label="Buscar" />
+    @if (lista.busqueda()) {
+    <button type="button" class="buscador-limpiar" (click)="lista.limpiarBusqueda()" aria-label="Limpiar búsqueda">
+      <span class="material-icons">close</span>
+    </button>
+    }
+  </div>
+  }
+</div>
+
+<!-- Zona con scroll propio: así el pie (ajustes) queda siempre visible. -->
+<div class="side-lista">
+  @if (colapsada()) {
+  <!-- Vista colapsada: solo el icono de cada documento -->
+  <div class="lista-iconos">
+    @for (d of lista.visibles(); track d.id) {
+    <button type="button" class="doc-ico-btn" [class.sel]="seleccionado() === d.id" (click)="abrirDoc.emit(d.id)"
+      [title]="d.titulo || 'Sin título'">
+      @if (imagenIcono(d.icono); as src) {
+      <img class="icono-img" [src]="src" alt="" />
+      } @else {
+      {{ d.icono || '📄' }}
+      }
+    </button>
+    }
+  </div>
+  } @else if (lista.busqueda().trim()) {
+  <!-- Resultados de búsqueda -->
+  @if (lista.resultados().length === 0) {
+  <p class="vacio">Sin resultados.</p>
+  } @else {
+  <mat-nav-list>
+    @for (r of lista.resultados(); track r.id) {
+    <a mat-list-item lines="2" (click)="abrirDoc.emit(r.id)" [class.sel]="seleccionado() === r.id">
+      <span matListItemTitle>
+        @if (imagenIcono(r.icono); as src) {
+        <img class="icono-img" [src]="src" alt="" />
+        } @else {
+        {{ r.icono || '📄' }}
+        }
+        @if (r.titulo) {
+        @for (p of partesFragmento(r.titulo); track $index) {
+        @if (p.hl) { <mark>{{ p.t }}</mark> } @else { <span>{{ p.t }}</span> }
+        }
+        } @else {
+        Sin título
+        }
+      </span>
+      <span matListItemLine class="frag">
+        @for (p of partesFragmento(r.fragmento); track $index) {
+        @if (p.hl) { <mark>{{ p.t }}</mark> } @else { <span>{{ p.t }}</span> }
+        }
+      </span>
+    </a>
+    }
+  </mat-nav-list>
+  }
+  } @else {
+  <!-- Filtro por etiqueta -->
+  @if (lista.etiquetas().length) {
+  <div class="etiquetas-filtro">
+    @for (t of lista.etiquetas(); track t.nombre) {
+    <button type="button" class="chip-tag" [class.activa]="lista.filtroTag() === t.nombre"
+      [style.background]="lista.filtroTag() === t.nombre ? fgTag(t.nombre) : bgTag(t.nombre)"
+      [style.color]="lista.filtroTag() === t.nombre ? '#fff' : fgTag(t.nombre)"
+      (click)="lista.alternarFiltro(t.nombre)">
+      {{ t.nombre }} <span class="chip-usos">{{ t.usos }}</span>
+    </button>
+    }
+  </div>
+  }
+
+  <!-- Lista de documentos (filtrada por etiqueta si procede) -->
+  @if (lista.visibles().length === 0) {
+  <p class="vacio">{{ lista.filtroTag() ? 'Sin documentos con esa etiqueta.' : 'Sin documentos aún.' }}</p>
+  } @else {
+  <mat-nav-list>
+    @for (d of lista.visibles(); track d.id) {
+    <a mat-list-item (click)="abrirDoc.emit(d.id)" [class.sel]="seleccionado() === d.id">
+      <span matListItemTitle>
+        @if (imagenIcono(d.icono); as src) {
+        <img class="icono-img" [src]="src" alt="" />
+        } @else {
+        {{ d.icono || '📄' }}
+        }
+        {{ d.titulo || 'Sin título' }}
+        @if (d.bloqueada) {
+        <span class="material-icons candado-mini" title="Bloqueada">lock</span>
+        }
+      </span>
+      @if (!bovedas.soloLectura()) {
+      <button mat-icon-button matListItemMeta (click)="pedirBorrado(d.id, $event)" aria-label="Eliminar documento">
+        <mat-icon>delete</mat-icon>
+      </button>
+      }
+    </a>
+    }
+  </mat-nav-list>
+  }
+  }
+</div>
+
+<!-- Pie: configuración (el tema vive dentro, en «Apariencia»). -->
+<div class="side-pie">
+  <button type="button" class="btn-ajustes" (click)="abrirConfiguracion.emit()" title="Configuración"
+    aria-label="Configuración">
+    <span class="material-icons">settings</span>
+    @if (!colapsada()) {
+    <span class="btn-ajustes-txt">Configuración</span>
+    }
+    @if (sincro.sincronizando()) {
+    <span class="punto-sincro" title="Sincronizando…"></span>
+    }
+  </button>
+</div>

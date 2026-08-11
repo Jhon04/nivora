@@ -1,0 +1,163 @@
+@use '../../../tema-colores' as tc;
+
+/* El hijo directo de la columna del panel es este host, no el `.toolbar` de
+   dentro: sin esto la barra se encogería en vertical cuando el documento pide
+   sitio, que es justo lo que evitaba el `flex: 0 0 auto` de abajo cuando el
+   `.toolbar` era el hijo directo. */
+:host {
+  display: block;
+  flex: 0 0 auto;
+}
+
+/* Barra de herramientas fija arriba (como en Word). En una sola fila: si no
+   caben todos los botones, se desplaza en horizontal (rueda o arrastrando)
+   en vez de saltar a otra línea. */
+.toolbar {
+  /* No necesita ser sticky: vive fuera del contenedor con scroll, así que
+     siempre está arriba. Sigue posicionada y con z-index para quedar POR ENCIMA
+     del handle de arrastre (z-index 5), que es fixed. */
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  /* no encoger verticalmente dentro del .pane */
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 2px;
+  min-height: 44px;
+  padding: 6px clamp(12px, 4vw, 12px);
+  background: var(--mat-sys-surface, #fff);
+  border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  scrollbar-width: none;
+  /* Firefox: ocultar barra (se desplaza con rueda/arrastre) */
+
+  /* WebKit: ocultar la barra por completo para que NO ocupe alto (si no,
+     recorta los iconos). */
+  &::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  &.arrastrando {
+    cursor: grabbing;
+    user-select: none;
+  }
+
+  /* Los ítems no se encogen: mantienen su tamaño y desbordan (menos el spacer). */
+  >*:not(.tb-spacer) {
+    flex: 0 0 auto;
+  }
+}
+
+.tb-group {
+  display: flex;
+  gap: 2px;
+}
+
+.tb-sep {
+  width: 1px;
+  height: 20px;
+  margin: 0 5px;
+  background: var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+}
+
+.tb-spacer {
+  flex: 1 1 auto;
+}
+
+.tb-btn {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: var(--mat-sys-on-surface, #1a1a1a);
+
+  .material-icons {
+    font-size: 20px;
+  }
+
+  &:hover {
+    background: var(--capa-hover);
+  }
+
+  &.activo {
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 16%, transparent);
+    color: var(--mat-sys-primary, #3b82f6);
+  }
+}
+
+.tb-insertar {
+  padding: 0 12px;
+  margin-right: 6px;
+  font-size: 0.85rem;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.16));
+}
+
+/* Botón desplegable de niveles de título (H ▾). */
+.tb-h {
+  font-weight: 700;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.tb-btn .material-icons.tb-caret {
+  font-size: 16px;
+  margin-left: -3px;
+  opacity: 0.7;
+}
+
+/* Botones de color (texto/resaltado): icono/"A" con barra del color actual
+   debajo. Caja de 20px (igual que un icono) para que ambos botones midan igual. */
+.color-a,
+.color-hl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  padding-bottom: 5px;
+}
+
+.color-a {
+  font-weight: 700;
+  font-size: 0.95rem;
+  line-height: 1;
+}
+
+.color-hl .material-icons {
+  font-size: 20px;
+}
+
+.color-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  border-radius: 1px;
+
+  /* Igual que las muestras de la paleta: el color va en --c y se pinta ya
+     adaptado al tema (ver src/_tema-colores.scss). */
+  &.txt {
+    background: tc.texto();
+  }
+
+  &.hl {
+    background: tc.resaltado();
+  }
+}
+
+/* Los estilos de .menu-titulos / .menu-item / .menu-colores / .swatch /
+   .enlace-pop / .enlace-input están en styles.scss (GLOBAL), porque el CDK
+   Overlay los renderiza fuera de este componente (el CSS con encapsulación no
+   les llegaría). */

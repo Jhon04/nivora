@@ -5,11 +5,11 @@ import { MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { open as abrirEnSistema } from '@tauri-apps/plugin-shell';
 import { getBundleType, getIdentifier, getTauriVersion, getVersion } from '@tauri-apps/api/app';
 
-import { EstadoClientId, EstadoSincro, RepoGitHub, SincroService } from '../core/sincro.service';
-import { TemaService } from '../core/tema.service';
-import { BovedasService } from '../core/bovedas.service';
-import { MINIMO_CLAVE, SecretosService } from '../core/secretos.service';
-import { ActualizacionesService } from '../core/actualizaciones.service';
+import { EstadoClientId, EstadoSincro, RepoGitHub, SincroService } from '../../core/sincro.service';
+import { TemaService } from '../../core/tema.service';
+import { BovedasService } from '../../core/bovedas.service';
+import { MINIMO_CLAVE, SecretosService } from '../../core/secretos.service';
+import { ActualizacionesService } from '../../core/actualizaciones.service';
 
 /** Secciones del diálogo (la lista de la izquierda). */
 type Seccion = 'cuenta' | 'secretos' | 'apariencia' | 'workspace' | 'acerca';

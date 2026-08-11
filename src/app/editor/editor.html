@@ -1,20 +1,6 @@
-<!-- Menú flotante al seleccionar texto (estilo Notion) -->
-<div tiptapBubbleMenu [editor]="editor" [options]="bubbleOptions" class="bubble">
-  <button type="button" (click)="toggleBold()" [class.activo]="isActive('bold')" title="Negrita"><b>B</b></button>
-  <button type="button" (click)="toggleItalic()" [class.activo]="isActive('italic')" title="Cursiva"><i>I</i></button>
-  <button type="button" (click)="toggleStrike()" [class.activo]="isActive('strike')" title="Tachado"><s>S</s></button>
-  <button type="button" (click)="toggleCode()" [class.activo]="isActive('code')" title="Código">&lt;/&gt;</button>
-  <span class="sep"></span>
-  <button type="button" (click)="toggleHeading(1)" [class.activo]="isActive('heading', { level: 1 })" title="Título 1">H1</button>
-  <button type="button" (click)="toggleHeading(2)" [class.activo]="isActive('heading', { level: 2 })" title="Título 2">H2</button>
-  <button type="button" (click)="toggleBullet()" [class.activo]="isActive('bulletList')" title="Lista">•</button>
-  <button type="button" (click)="toggleTasks()" [class.activo]="isActive('taskList')" title="Tareas">☑</button>
-  <button type="button" (click)="toggleQuote()" [class.activo]="isActive('blockquote')" title="Cita">❝</button>
-</div>
-
-<!-- Barra de la tabla. Va ABAJO y con su propia `pluginKey`: el menú de texto
-     usa la de arriba, así que al seleccionar dentro de una celda se ven los dos
-     sin taparse. Aparece con el cursor dentro, sin necesidad de seleccionar. -->
+<!-- Barra de la tabla: lo único flotante que queda. Sus acciones son de fila y
+     de columna, y la barra de arriba no las tiene, así que esta sí hace falta.
+     Aparece con el cursor dentro, sin necesidad de seleccionar. -->
 <div
   tiptapBubbleMenu
   pluginKey="menuTabla"

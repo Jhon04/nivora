@@ -140,8 +140,8 @@
   }
 }
 
-/* Barra de la tabla: mismo aspecto que la de texto, pero con etiquetas en vez
-   de un glifo, así que las cajas son más anchas. */
+/* Barra de la tabla: usa etiquetas en vez de un glifo, así que sus cajas son
+   más anchas que las de una barra de iconos. */
 .bubble-tabla {
   /* Disparadores de los desplegables: icono + nombre + caret. */
   button.grupo {

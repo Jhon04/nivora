@@ -24,18 +24,18 @@ import { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { MatDialog } from '@angular/material/dialog';
 import { open } from '@tauri-apps/plugin-dialog';
 import { open as abrirEnSistema } from '@tauri-apps/plugin-shell';
-import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
+import { OverlayModule } from '@angular/cdk/overlay';
 import { TiptapBubbleMenuDirective, TiptapEditorDirective } from 'ngx-tiptap';
 import { firstValueFrom } from 'rxjs';
 
 import { AssetGuardado, AssetsService } from '../core/assets.service';
 import { resolverSrc } from '../core/asset-path';
-import { AnotarDatos, AnotarImagenDialog, AnotarResultado } from './anotar-imagen';
-import { AssetImage } from './asset-image';
-import { CodeBlockCopia } from './code-block-copia';
-import { BlockDrag } from './block-drag';
-import { BloqueLista, TipoLista } from './lista-plana';
-import { ColorAdaptable, ResaltadoAdaptable } from './color-adaptable';
+import { AnotarDatos, AnotarImagenDialog, AnotarResultado } from './anotar-imagen/anotar-imagen';
+import { AssetImage } from './extensiones/asset-image';
+import { CodeBlockCopia } from './extensiones/code-block-copia';
+import { BlockDrag } from './extensiones/block-drag';
+import { BloqueLista, TipoLista } from './extensiones/lista-plana';
+import { ColorAdaptable, ResaltadoAdaptable } from './extensiones/color-adaptable';
 import { EntradaIndice, extraerIndice } from './indice';
 import {
   createSlashCommand,
@@ -44,10 +44,12 @@ import {
   EVENTO_SECRETO_ABIERTO,
   EVENTO_SECRETO_ABRIR,
   SlashItem,
-} from './slash-command';
-import { PeticionSecreto, Secreto } from './secreto';
+} from './extensiones/slash-command';
+import { PeticionSecreto, Secreto } from './extensiones/secreto';
+import { TituloPlegable } from './extensiones/titulo-plegable';
 import { SecretosService } from '../core/secretos.service';
-import { SecretoDatos, SecretoDialog, SecretoResultado } from '../shared/secreto-dialog';
+import { SecretoDatos, SecretoDialog, SecretoResultado } from '../shared/secreto-dialog/secreto-dialog';
+import { POSICIONES_MENU } from '../shared/posiciones-menu';
 
 /** Documento Tiptap vacío (un párrafo). */
 const DOC_VACIO: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] };
@@ -144,9 +146,8 @@ export class EditorComponent implements OnDestroy {
    */
   readonly editable = input(true);
 
-  protected readonly bubbleOptions = { placement: 'top' as const };
-  /* Abajo, para no taparse con el menú de texto cuando se selecciona dentro de
-     una celda: ahí se ven los dos, uno a cada lado. */
+  /* Abajo: arriba taparía la fila que se está editando, que es justo la que hay
+     que ver mientras se toca. */
   protected readonly tablaOptions = { placement: 'bottom' as const };
   /**
    * La barra de tabla sale con el **cursor** dentro, sin tener que seleccionar
@@ -158,13 +159,7 @@ export class EditorComponent implements OnDestroy {
      distinguir «✕ fila» de «✕ col». */
   protected readonly menuFila = signal(false);
   protected readonly menuCol = signal(false);
-  /** Mismas posiciones que los desplegables del toolbar, para que caigan igual. */
-  protected readonly posicionesMenu: ConnectedPosition[] = [
-    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 6 },
-    { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -6 },
-    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 6 },
-    { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -6 },
-  ];
+  protected readonly posicionesMenu = POSICIONES_MENU;
 
   // --- Estado del slash menu (/) ---
   protected readonly slashOpen = signal(false);
@@ -225,8 +220,8 @@ export class EditorComponent implements OnDestroy {
           },
           // Usamos nuestro bloque de código con botón "Copiar".
           codeBlock: false,
-          // Títulos H1–H4 (el toolbar ofrece esos cuatro niveles).
-          heading: { levels: [1, 2, 3, 4] },
+          // Y nuestros títulos, que además se pliegan (ver titulo-plegable.ts).
+          heading: false,
           /* Fuera el esquema de listas anidadas: las nuestras son bloques
              planos (ver lista-plana.ts). */
           bulletList: false,
@@ -234,6 +229,8 @@ export class EditorComponent implements OnDestroy {
           listItem: false,
           listKeymap: false,
         }),
+        // Títulos H1–H4 (el toolbar ofrece esos cuatro niveles).
+        TituloPlegable.configure({ levels: [1, 2, 3, 4] }),
         CodeBlockCopia,
         Placeholder.configure({
           placeholder: 'Escribe "/" para insertar un bloque, o simplemente escribe…',
@@ -534,6 +531,10 @@ export class EditorComponent implements OnDestroy {
     for (const [i, entrada] of entradas.entries()) {
       const dom = this.editor.view.nodeDOM(entrada.pos);
       if (!(dom instanceof HTMLElement)) continue;
+      /* Un título dentro de una sección plegada no pinta caja: su rectángulo es
+         todo ceros y, tomado al pie de la letra, parece que ya ha pasado por
+         arriba. Se salta: la sección activa es la del último título VISIBLE. */
+      if (dom.getClientRects().length === 0) continue;
       if (dom.getBoundingClientRect().top > limite) break;
       activo = i;
     }
@@ -559,6 +560,11 @@ export class EditorComponent implements OnDestroy {
     if (!entrada) return;
     this.tituloActivo.set(i);
 
+    /* Si cae dentro de una sección plegada hay que abrirla primero: escondido
+       no tiene caja, y saltar a algo que no se ve deja la vista en cualquier
+       parte. El índice enseña la nota entera, plegada o no. */
+    this.editor.commands.desplegarHasta(entrada.pos);
+
     const dom = this.editor.view.nodeDOM(entrada.pos);
     if (!(dom instanceof HTMLElement)) return;
 
@@ -583,7 +589,7 @@ export class EditorComponent implements OnDestroy {
     });
   }
 
-  // --- Acciones de formato (toolbar y bubble menu) ---
+  // --- Acciones de formato (las usa la barra de herramientas) ---
   undo(): void { this.editor.chain().focus().undo().run(); }
   redo(): void { this.editor.chain().focus().redo().run(); }
   toggleBold(): void { this.editor.chain().focus().toggleBold().run(); }

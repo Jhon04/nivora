@@ -1,0 +1,249 @@
+<!-- Una sola fila: si no caben todos los botones, se desplaza en horizontal
+     (rueda o arrastrando con el ratón) en vez de saltar a otra línea. -->
+<div class="toolbar" appDragScroll>
+  <div class="tb-group">
+    <button type="button" class="tb-btn" (click)="ed().undo()" title="Deshacer">
+      <span class="material-icons">undo</span>
+    </button>
+    <button type="button" class="tb-btn" (click)="ed().redo()" title="Rehacer">
+      <span class="material-icons">redo</span>
+    </button>
+  </div>
+
+  <span class="tb-sep"></span>
+
+  <div class="tb-group tb-titulos">
+    <button type="button" class="tb-btn" cdkOverlayOrigin #origenTitulos="cdkOverlayOrigin"
+      [class.activo]="ed().isActive('heading')" (click)="menuTitulos.set(!menuTitulos())" title="Títulos">
+      <span class="tb-h">H</span>
+      <span class="material-icons tb-caret">expand_more</span>
+    </button>
+  </div>
+
+  <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origenTitulos" [cdkConnectedOverlayOpen]="menuTitulos()"
+    [cdkConnectedOverlayPositions]="posicionesMenu" [cdkConnectedOverlayPush]="true"
+    [cdkConnectedOverlayHasBackdrop]="true" cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+    (backdropClick)="menuTitulos.set(false)" (detach)="menuTitulos.set(false)">
+    <div class="menu-titulos">
+      <button type="button" class="menu-item" [class.activo]="ed().isActive('heading', { level: 1 })"
+        (click)="ed().toggleHeading(1); menuTitulos.set(false)">
+        <span class="h-badge">H1</span> Título 1
+      </button>
+      <button type="button" class="menu-item" [class.activo]="ed().isActive('heading', { level: 2 })"
+        (click)="ed().toggleHeading(2); menuTitulos.set(false)">
+        <span class="h-badge">H2</span> Título 2
+      </button>
+      <button type="button" class="menu-item" [class.activo]="ed().isActive('heading', { level: 3 })"
+        (click)="ed().toggleHeading(3); menuTitulos.set(false)">
+        <span class="h-badge">H3</span> Título 3
+      </button>
+      <button type="button" class="menu-item" [class.activo]="ed().isActive('heading', { level: 4 })"
+        (click)="ed().toggleHeading(4); menuTitulos.set(false)">
+        <span class="h-badge">H4</span> Título 4
+      </button>
+    </div>
+  </ng-template>
+
+  <span class="tb-sep"></span>
+
+  <div class="tb-group">
+    <button type="button" class="tb-btn" (click)="ed().toggleBold()" [class.activo]="ed().isActive('bold')"
+      title="Negrita">
+      <span class="material-icons">format_bold</span>
+    </button>
+    <button type="button" class="tb-btn" (click)="ed().toggleItalic()" [class.activo]="ed().isActive('italic')"
+      title="Cursiva">
+      <span class="material-icons">format_italic</span>
+    </button>
+    <button type="button" class="tb-btn" (click)="ed().toggleUnderline()" [class.activo]="ed().isActive('underline')"
+      title="Subrayado">
+      <span class="material-icons">format_underlined</span>
+    </button>
+    <button type="button" class="tb-btn" (click)="ed().toggleStrike()" [class.activo]="ed().isActive('strike')"
+      title="Tachado">
+      <span class="material-icons">format_strikethrough</span>
+    </button>
+    <button type="button" class="tb-btn" (click)="ed().toggleCode()" [class.activo]="ed().isActive('code')"
+      title="Código en línea">
+      <span class="material-icons">code</span>
+    </button>
+
+    <!-- Color de texto -->
+    <div class="tb-group">
+      <button type="button" class="tb-btn" cdkOverlayOrigin #origenColorTxt="cdkOverlayOrigin"
+        [class.activo]="!!ed().colorTextoActual()" (click)="menuColorTexto.set(!menuColorTexto())"
+        title="Color de texto">
+        <span class="color-a">
+          A
+          <span class="color-bar txt" [style.--c]="ed().colorTextoActual() || 'currentColor'"></span>
+        </span>
+        <!-- #region 
+      <span class="material-icons tb-caret">expand_more</span>
+      -->
+      </button>
+    </div>
+
+    <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origenColorTxt"
+      [cdkConnectedOverlayOpen]="menuColorTexto()" [cdkConnectedOverlayPositions]="posicionesMenu"
+      [cdkConnectedOverlayPush]="true" [cdkConnectedOverlayHasBackdrop]="true"
+      cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop" (backdropClick)="menuColorTexto.set(false)"
+      (detach)="menuColorTexto.set(false)">
+      <div class="menu-colores">
+        <div class="swatches">
+          @for (c of coloresTexto; track c) {
+          <button type="button" class="swatch txt" [class.sel]="ed().colorTextoActual() === c" [style.--c]="c"
+            [title]="c" (click)="ed().setColorTexto(c); menuColorTexto.set(false)"></button>
+          }
+        </div>
+        <button type="button" class="menu-item quitar" (click)="ed().quitarColorTexto(); menuColorTexto.set(false)">
+          <span class="material-icons menu-ico">format_color_reset</span> Quitar color
+        </button>
+      </div>
+    </ng-template>
+
+    <!-- Resaltado -->
+    <div class="tb-group">
+      <button type="button" class="tb-btn" cdkOverlayOrigin #origenResaltado="cdkOverlayOrigin"
+        [class.activo]="ed().isActive('highlight')" (click)="menuResaltado.set(!menuResaltado())" title="Resaltado">
+        <span class="color-hl">
+          <span class="material-icons">brush</span>
+          <span class="color-bar hl" [style.--c]="ed().resaltadoActual() || 'transparent'"></span>
+        </span>
+        <!-- #region 
+      <span class="material-icons tb-caret">expand_more</span>
+      -->
+      </button>
+    </div>
+
+    <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origenResaltado"
+      [cdkConnectedOverlayOpen]="menuResaltado()" [cdkConnectedOverlayPositions]="posicionesMenu"
+      [cdkConnectedOverlayPush]="true" [cdkConnectedOverlayHasBackdrop]="true"
+      cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop" (backdropClick)="menuResaltado.set(false)"
+      (detach)="menuResaltado.set(false)">
+      <div class="menu-colores">
+        <div class="swatches">
+          @for (c of coloresResaltado; track c) {
+          <button type="button" class="swatch hl" [class.sel]="ed().resaltadoActual() === c" [style.--c]="c" [title]="c"
+            (click)="ed().setResaltado(c); menuResaltado.set(false)"></button>
+          }
+        </div>
+        <button type="button" class="menu-item quitar" (click)="ed().quitarResaltado(); menuResaltado.set(false)">
+          <span class="material-icons menu-ico">format_color_reset</span> Quitar resaltado
+        </button>
+      </div>
+    </ng-template>
+  </div>
+
+  <span class="tb-sep"></span>
+
+
+  <div class="tb-group">
+
+    <div class="tb-group tb-enlace">
+      <button type="button" class="tb-btn" cdkOverlayOrigin #origenEnlace="cdkOverlayOrigin"
+        [class.activo]="ed().isActive('link')"
+        (click)="enlaceAbierto() ? enlaceAbierto.set(false) : abrirEnlace(ed().enlaceActual())" title="Enlace">
+        <span class="material-icons">link</span>
+      </button>
+    </div>
+
+    <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origenEnlace"
+      [cdkConnectedOverlayOpen]="enlaceAbierto()" [cdkConnectedOverlayPositions]="posicionesMenu"
+      [cdkConnectedOverlayPush]="true" [cdkConnectedOverlayHasBackdrop]="true"
+      cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop" (backdropClick)="enlaceAbierto.set(false)"
+      (detach)="enlaceAbierto.set(false)">
+      <div class="enlace-pop" (keydown.escape)="enlaceAbierto.set(false)">
+        <input class="enlace-input" type="url" [ngModel]="enlaceUrl()" (ngModelChange)="enlaceUrl.set($event)"
+          (keydown.enter)="ed().aplicarEnlace(enlaceUrl()); enlaceAbierto.set(false)"
+          placeholder="https://…  o  correo@dominio" />
+        <button type="button" class="mini-btn" (click)="ed().aplicarEnlace(enlaceUrl()); enlaceAbierto.set(false)">
+          Aplicar
+        </button>
+        @if (ed().isActive('link')) {
+        <button type="button" class="mini-btn" (click)="ed().quitarEnlace(); enlaceAbierto.set(false)">
+          Quitar
+        </button>
+        }
+      </div>
+    </ng-template>
+
+    <button type="button" class="tb-btn" (click)="ed().elegirImagen()" title="Insertar imagen desde archivo">
+      <span class="material-icons">image</span>
+    </button>
+    <button type="button" class="tb-btn" (click)="ed().toggleQuote()" [class.activo]="ed().isActive('blockquote')"
+      title="Cita">
+      <span class="material-icons">format_quote</span>
+    </button>
+    <button type="button" class="tb-btn" (click)="ed().toggleCodeBlock()" [class.activo]="ed().isActive('codeBlock')"
+      title="Bloque de código">
+      <span class="material-icons">data_object</span>
+    </button>
+    <button type="button" class="tb-btn" (click)="ed().setDivisor()" title="Divisor">
+      <span class="material-icons">horizontal_rule</span>
+    </button>
+  </div>
+
+  <span class="tb-sep"></span>
+
+  <div class="tb-group">
+    <button type="button" class="tb-btn" cdkOverlayOrigin #origenListas="cdkOverlayOrigin"
+      [class.activo]="ed().isActive('bloqueLista')" (click)="menuListas.set(!menuListas())" title="Listas">
+      <span class="material-icons">format_list_bulleted</span>
+      <span class="material-icons tb-caret">expand_more</span>
+    </button>
+  </div>
+
+  <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origenListas" [cdkConnectedOverlayOpen]="menuListas()"
+    [cdkConnectedOverlayPositions]="posicionesMenu" [cdkConnectedOverlayPush]="true"
+    [cdkConnectedOverlayHasBackdrop]="true" cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+    (backdropClick)="menuListas.set(false)" (detach)="menuListas.set(false)">
+    <div class="menu-titulos">
+      <button type="button" class="menu-item" [class.activo]="ed().listaActiva('vinetas')"
+        (click)="ed().toggleBullet(); menuListas.set(false)">
+        <span class="material-icons menu-ico">format_list_bulleted</span> Lista con viñetas
+      </button>
+      <button type="button" class="menu-item" [class.activo]="ed().listaActiva('numerada')"
+        (click)="ed().toggleOrdered(); menuListas.set(false)">
+        <span class="material-icons menu-ico">format_list_numbered</span> Lista numerada
+      </button>
+      <button type="button" class="menu-item" [class.activo]="ed().listaActiva('tarea')"
+        (click)="ed().toggleTasks(); menuListas.set(false)">
+        <span class="material-icons menu-ico">checklist</span> Lista de tareas
+      </button>
+    </div>
+  </ng-template>
+
+
+  <div class="tb-group">
+    <button type="button" class="tb-btn" cdkOverlayOrigin #origenAlinear="cdkOverlayOrigin"
+      [class.activo]="ed().isActive({ textAlign: 'center' }) || ed().isActive({ textAlign: 'right' }) || ed().isActive({ textAlign: 'justify' })"
+      (click)="menuAlinear.set(!menuAlinear())" title="Alineación">
+      <span class="material-icons">format_align_left</span>
+      <span class="material-icons tb-caret">expand_more</span>
+    </button>
+  </div>
+
+  <ng-template cdkConnectedOverlay [cdkConnectedOverlayOrigin]="origenAlinear" [cdkConnectedOverlayOpen]="menuAlinear()"
+    [cdkConnectedOverlayPositions]="posicionesMenu" [cdkConnectedOverlayPush]="true"
+    [cdkConnectedOverlayHasBackdrop]="true" cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
+    (backdropClick)="menuAlinear.set(false)" (detach)="menuAlinear.set(false)">
+    <div class="menu-titulos">
+      <button type="button" class="menu-item" [class.activo]="ed().isActive({ textAlign: 'left' })"
+        (click)="ed().setAlineacion('left'); menuAlinear.set(false)">
+        <span class="material-icons menu-ico">format_align_left</span> Izquierda
+      </button>
+      <button type="button" class="menu-item" [class.activo]="ed().isActive({ textAlign: 'center' })"
+        (click)="ed().setAlineacion('center'); menuAlinear.set(false)">
+        <span class="material-icons menu-ico">format_align_center</span> Centrar
+      </button>
+      <button type="button" class="menu-item" [class.activo]="ed().isActive({ textAlign: 'right' })"
+        (click)="ed().setAlineacion('right'); menuAlinear.set(false)">
+        <span class="material-icons menu-ico">format_align_right</span> Derecha
+      </button>
+      <button type="button" class="menu-item" [class.activo]="ed().isActive({ textAlign: 'justify' })"
+        (click)="ed().setAlineacion('justify'); menuAlinear.set(false)">
+        <span class="material-icons menu-ico">format_align_justify</span> Justificar
+      </button>
+    </div>
+  </ng-template>
+</div>

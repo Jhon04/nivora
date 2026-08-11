@@ -1,7 +1,7 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { IndiceNota } from './indice-nota';
-import { EntradaIndice } from '../editor/indice';
+import { EntradaIndice } from '../../editor/indice';
 
 const ENTRADAS: EntradaIndice[] = [
   { pos: 0, nivel: 1, texto: 'Introducción', sangria: 0 },

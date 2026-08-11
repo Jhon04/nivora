@@ -1,27 +1,35 @@
-import { Component, computed, HostListener, inject, OnInit, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  HostListener,
+  inject,
+  OnInit,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { JSONContent } from '@tiptap/core';
-import { ConnectedPosition, OverlayModule } from '@angular/cdk/overlay';
 import { open } from '@tauri-apps/plugin-dialog';
 import { MatButtonModule } from '@angular/material/button';
-import { MatIconModule } from '@angular/material/icon';
-import { MatListModule } from '@angular/material/list';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 
-import { ConfirmarDatos, ConfirmarDialog } from './shared/confirmar-dialog';
+import { ConfirmarDatos, ConfirmarDialog } from './shared/confirmar-dialog/confirmar-dialog';
+import { BarraHerramientas } from './editor/barra-herramientas/barra-herramientas';
+import { BarraLateral } from './barra-lateral/barra-lateral';
 import { EditorComponent } from './editor/editor';
-import { EmojiPicker } from './documento/emoji-picker';
-import { IndiceNota } from './documento/indice-nota';
-import { DragScrollDirective } from './shared/drag-scroll';
+import { EmojiPicker } from './documento/emoji-picker/emoji-picker';
+import { IndiceNota } from './documento/indice-nota/indice-nota';
 import { DocumentosService } from './core/documentos.service';
+import { ListaDocumentosService } from './core/lista-documentos.service';
 import { AssetsService } from './core/assets.service';
 import { PreferenciasService } from './core/preferencias.service';
 import { TemaService } from './core/tema.service';
 import { SincroService } from './core/sincro.service';
 import { BovedasService } from './core/bovedas.service';
 import { ActualizacionesService } from './core/actualizaciones.service';
-import { ConfiguracionDialog } from './shared/configuracion';
+import { ConfiguracionDialog } from './shared/configuracion/configuracion';
+import { bgTag, fgTag } from './core/color-etiqueta';
 import {
   migrarAssetsARelativo,
   nombreRelativo,
@@ -30,12 +38,7 @@ import {
   srcIcono,
 } from './core/asset-path';
 import { migrarListas } from './core/migrar-listas';
-import {
-  Documento,
-  DocumentoResumen,
-  ResultadoBusqueda,
-  TagInfo,
-} from './models/documento.model';
+import { Documento } from './models/documento.model';
 
 const DOC_VACIO: JSONContent = { type: 'doc', content: [{ type: 'paragraph' }] };
 
@@ -48,14 +51,12 @@ type EstadoGuardado = 'idle' | 'pendiente' | 'guardando' | 'guardado' | 'error';
   selector: 'app-root',
   imports: [
     FormsModule,
+    BarraHerramientas,
+    BarraLateral,
     EditorComponent,
     EmojiPicker,
     IndiceNota,
-    DragScrollDirective,
-    OverlayModule,
     MatButtonModule,
-    MatIconModule,
-    MatListModule,
   ],
   templateUrl: './app.html',
   styleUrl: './app.scss',
@@ -75,21 +76,19 @@ export class App implements OnInit {
   protected readonly sincro = inject(SincroService);
   protected readonly bovedas = inject(BovedasService);
   protected readonly actualizaciones = inject(ActualizacionesService);
+  /** El listado de notas. Lo pinta la barra lateral; aquí se consulta. */
+  protected readonly lista = inject(ListaDocumentosService);
 
-  protected readonly documentos = signal<DocumentoResumen[]>([]);
   protected readonly actual = signal<Documento | null>(null);
   protected readonly estadoGuardado = signal<EstadoGuardado>('idle');
   protected readonly error = signal<string | null>(null);
   protected readonly iconoAbierto = signal(false);
-  protected readonly enlaceAbierto = signal(false);
-  protected readonly enlaceUrl = signal('');
 
-  /** Menús desplegables del toolbar (títulos, listas, alineación, colores). */
-  protected readonly menuTitulos = signal(false);
-  protected readonly menuListas = signal(false);
-  protected readonly menuAlinear = signal(false);
-  protected readonly menuColorTexto = signal(false);
-  protected readonly menuResaltado = signal(false);
+  /**
+   * La barra de herramientas, para poder cerrarle los desplegables al cambiar
+   * de nota. Solo existe con un documento abierto, de ahí el opcional.
+   */
+  private readonly barra = viewChild(BarraHerramientas);
 
   /**
    * ¿Se puede editar el documento abierto?
@@ -160,38 +159,12 @@ export class App implements OnInit {
     this.sincro.restauradas.set([]);
   }
 
-  /** Selector de bóveda (cabecera de la barra lateral). */
-  protected readonly menuBovedas = signal(false);
-  protected readonly nombreBovedaNueva = signal('');
+  /** Hay un cambio de bóveda en marcha (lo mira el selector de la lateral). */
   protected readonly cambiandoBoveda = signal(false);
-
-  /** Paletas para color de texto y resaltado. */
-  protected readonly coloresTexto = [
-    '#000000', '#495057', '#e03131', '#e8590c', '#f08c00', '#2f9e44',
-    '#0ca678', '#1971c2', '#4263eb', '#7048e8', '#ae3ec9', '#c2255c',
-  ];
-  protected readonly coloresResaltado = [
-    '#ffec99', '#ffd8a8', '#ffc9c9', '#eebefa', '#d0bfff', '#bac8ff',
-    '#a5d8ff', '#99e9f2', '#c3fae8', '#b2f2bb', '#d8f5a2', '#dee2e6',
-  ];
-
-  /** Posiciones para los desplegables del toolbar (CDK Overlay): debajo del
-   *  botón y, si no cabe, encima; el CDK elige la que entre en pantalla. */
-  protected readonly posicionesMenu: ConnectedPosition[] = [
-    { originX: 'start', originY: 'bottom', overlayX: 'start', overlayY: 'top', offsetY: 6 },
-    { originX: 'start', originY: 'top', overlayX: 'start', overlayY: 'bottom', offsetY: -6 },
-    { originX: 'end', originY: 'bottom', overlayX: 'end', overlayY: 'top', offsetY: 6 },
-    { originX: 'end', originY: 'top', overlayX: 'end', overlayY: 'bottom', offsetY: -6 },
-  ];
 
   private timerGuardado?: ReturnType<typeof setTimeout>;
 
-  protected readonly busqueda = signal('');
-  protected readonly resultados = signal<ResultadoBusqueda[]>([]);
-  private timerBusqueda?: ReturnType<typeof setTimeout>;
-
-  protected readonly etiquetas = signal<TagInfo[]>([]);
-  protected readonly filtroTag = signal<string | null>(null);
+  /** Etiqueta que se está escribiendo en el documento abierto. */
   protected readonly nuevaEtiqueta = signal('');
 
   /** Sidebar colapsada (solo iconos). Arranca como la dejó el usuario. */
@@ -200,12 +173,9 @@ export class App implements OnInit {
   /** Panel del índice (títulos de la nota). También se recuerda entre sesiones. */
   protected readonly indiceAbierto = signal(this.prefs.obtener().indiceAbierto);
 
-  /** Documentos visibles en la barra lateral, aplicando el filtro por etiqueta. */
-  protected readonly documentosVisibles = computed(() => {
-    const f = this.filtroTag();
-    const docs = this.documentos();
-    return f ? docs.filter((d) => (d.tags ?? []).includes(f)) : docs;
-  });
+  /** Color de los chips de etiqueta del documento (los mismos que el filtro). */
+  protected readonly bgTag = bgTag;
+  protected readonly fgTag = fgTag;
 
   /** URL del webview para la portada (el documento guarda el nombre relativo). */
   protected readonly coverUrl = computed(() => {
@@ -272,7 +242,6 @@ export class App implements OnInit {
    *    esto, las imágenes se buscarían en la carpeta de la bóveda anterior.
    */
   async cambiarBoveda(id: string): Promise<void> {
-    this.menuBovedas.set(false);
     if (this.bovedas.activa()?.id === id || this.cambiandoBoveda()) return;
 
     this.cambiandoBoveda.set(true);
@@ -290,19 +259,16 @@ export class App implements OnInit {
   }
 
   /** Crea una bóveda vacía y se abre en ella. */
-  async crearBoveda(): Promise<void> {
-    const nombre = this.nombreBovedaNueva().trim();
-    if (!nombre || this.cambiandoBoveda()) return;
+  async crearBoveda(nombre: string): Promise<void> {
+    if (!nombre.trim() || this.cambiandoBoveda()) return;
 
-    this.menuBovedas.set(false);
     this.cambiandoBoveda.set(true);
     try {
       await this.flushGuardado();
       this.cerrarDocumento();
-      await this.bovedas.crear(nombre); // crear ya cambia a la nueva
+      await this.bovedas.crear(nombre.trim()); // crear ya cambia a la nueva
       await this.assets.iniciar();
       await this.trasCambiarBoveda();
-      this.nombreBovedaNueva.set('');
     } catch (e) {
       this.error.set(this.msg(e));
     } finally {
@@ -321,14 +287,18 @@ export class App implements OnInit {
     await this.guardarAuto();
   }
 
-  /** Suelta el documento abierto sin guardarlo (ya se vació antes). */
+  /**
+   * Suelta el documento abierto sin guardarlo (ya se vació antes).
+   *
+   * Sin documento no hay barra de herramientas: al destruirse se lleva por
+   * delante sus desplegables, así que aquí no hay nada que cerrarle.
+   */
   private cerrarDocumento(): void {
     clearTimeout(this.timerGuardado);
     this.timerGuardado = undefined;
     this.actual.set(null);
     this.estadoGuardado.set('idle');
     this.iconoAbierto.set(false);
-    this.enlaceAbierto.set(false);
     this.nuevaEtiqueta.set('');
   }
 
@@ -336,8 +306,7 @@ export class App implements OnInit {
   private async trasCambiarBoveda(): Promise<void> {
     // La búsqueda y el filtro son de la bóveda anterior: sus resultados
     // apuntarían a notas que aquí no existen.
-    this.limpiarBusqueda();
-    this.filtroTag.set(null);
+    this.lista.reiniciar();
     this.error.set(null);
     this.sincro.conflictos.set([]);
     this.sincro.restauradas.set([]);
@@ -359,30 +328,20 @@ export class App implements OnInit {
     }
   }
 
+  /**
+   * Relee la lista. El fallo lo guarda el servicio (`lista.error()`), que se
+   * pinta junto al del documento; aquí solo se limpia el aviso anterior, como
+   * hacía antes de que la lista viviera aparte.
+   */
   async refrescar(): Promise<void> {
-    try {
-      const [docs, tags] = await Promise.all([this.docs.listar(), this.docs.listarTags()]);
-      this.documentos.set(docs);
-      this.etiquetas.set(tags);
-      // Si el filtro activo ya no existe (etiqueta podada), quitarlo.
-      if (this.filtroTag() && !tags.some((t) => t.nombre === this.filtroTag())) {
-        this.filtroTag.set(null);
-      }
-      this.error.set(null);
-    } catch (e) {
-      this.error.set(this.msg(e));
-    }
+    await this.lista.refrescar();
+    this.error.set(null);
   }
 
   async nuevo(): Promise<void> {
     await this.flushGuardado();
     this.iconoAbierto.set(false);
-    this.enlaceAbierto.set(false);
-    this.menuTitulos.set(false);
-    this.menuListas.set(false);
-    this.menuAlinear.set(false);
-    this.menuColorTexto.set(false);
-    this.menuResaltado.set(false);
+    this.barra()?.cerrarMenus();
     this.nuevaEtiqueta.set('');
     this.estadoGuardado.set('idle');
     this.actual.set({ titulo: '', contenido: structuredClone(DOC_VACIO) });
@@ -391,12 +350,7 @@ export class App implements OnInit {
   async abrir(id: string): Promise<void> {
     await this.flushGuardado();
     this.iconoAbierto.set(false);
-    this.enlaceAbierto.set(false);
-    this.menuTitulos.set(false);
-    this.menuListas.set(false);
-    this.menuAlinear.set(false);
-    this.menuColorTexto.set(false);
-    this.menuResaltado.set(false);
+    this.barra()?.cerrarMenus();
     this.nuevaEtiqueta.set('');
     try {
       const doc = await this.docs.obtener(id);
@@ -425,13 +379,6 @@ export class App implements OnInit {
     this.iconoAbierto.update((v) => !v);
   }
 
-  /** Abre el popover de enlace (CDK Overlay), precargando la URL bajo el cursor. */
-  abrirEnlace(urlActual: string): void {
-    this.enlaceUrl.set(urlActual);
-    this.enlaceAbierto.set(true);
-    setTimeout(() => document.querySelector<HTMLInputElement>('.enlace-input')?.focus(), 0);
-  }
-
   onIcono(icono: string | null): void {
     const a = this.actual();
     if (!a) return;
@@ -441,7 +388,7 @@ export class App implements OnInit {
 
   /**
    * URL de la imagen de un icono, o null si es un emoji. La plantilla la usa
-   * para decidir entre `<img>` y texto, en la nota y en los listados.
+   * para decidir entre `<img>` y texto.
    */
   imagenIcono(icono: string | null | undefined): string | null {
     return srcIcono(icono);
@@ -520,10 +467,6 @@ export class App implements OnInit {
     this.programarGuardado();
   }
 
-  alternarFiltro(nombre: string): void {
-    this.filtroTag.update((f) => (f === nombre ? null : nombre));
-  }
-
   toggleSidebar(): void {
     this.sidebarColapsada.update((v) => !v);
     this.prefs.fijar('sidebarColapsada', this.sidebarColapsada());
@@ -532,67 +475,6 @@ export class App implements OnInit {
   alternarIndice(): void {
     this.indiceAbierto.update((v) => !v);
     this.prefs.fijar('indiceAbierto', this.indiceAbierto());
-  }
-
-  /** Color estable derivado del nombre de la etiqueta. */
-  private hueTag(nombre: string): number {
-    let h = 0;
-    for (const ch of nombre) h = (h * 31 + ch.charCodeAt(0)) % 360;
-    return h;
-  }
-
-  /* Se emite light-dark() en vez de mirar el tema desde TypeScript: así el
-     color lo resuelve el navegador y sigue al vuelo los cambios de tema. */
-  bgTag(nombre: string): string {
-    const h = this.hueTag(nombre);
-    return `light-dark(hsl(${h} 65% 92%), hsl(${h} 42% 24%))`;
-  }
-
-  fgTag(nombre: string): string {
-    const h = this.hueTag(nombre);
-    return `light-dark(hsl(${h} 45% 32%), hsl(${h} 70% 80%))`;
-  }
-
-  onBuscar(texto: string): void {
-    this.busqueda.set(texto);
-    clearTimeout(this.timerBusqueda);
-    if (!texto.trim()) {
-      this.resultados.set([]);
-      return;
-    }
-    this.timerBusqueda = setTimeout(() => {
-      void this.docs
-        .buscar(texto)
-        .then((r) => this.resultados.set(r))
-        .catch((e) => this.error.set(this.msg(e)));
-    }, 200);
-  }
-
-  limpiarBusqueda(): void {
-    clearTimeout(this.timerBusqueda);
-    this.busqueda.set('');
-    this.resultados.set([]);
-  }
-
-  /** Parte el fragmento en segmentos, marcando (hl) los términos encontrados
-   *  (delimitados por U+0002/U+0003), para resaltarlos sin usar innerHTML. */
-  partesFragmento(fragmento: string): { t: string; hl: boolean }[] {
-    const partes: { t: string; hl: boolean }[] = [];
-    let buffer = '';
-    let hl = false;
-    for (const ch of fragmento) {
-      const code = ch.charCodeAt(0);
-      if (code === 2 || code === 3) {
-        // 2 = U+0002 (inicio de término encontrado), 3 = U+0003 (fin)
-        if (buffer) partes.push({ t: buffer, hl });
-        buffer = '';
-        hl = code === 2;
-      } else {
-        buffer += ch;
-      }
-    }
-    if (buffer) partes.push({ t: buffer, hl });
-    return partes;
   }
 
   onContenido(contenido: JSONContent): void {
@@ -665,10 +547,8 @@ export class App implements OnInit {
     }
   }
 
-  async eliminar(id: string, ev: Event): Promise<void> {
-    ev.stopPropagation();
-
-    const titulo = this.documentos().find((d) => d.id === id)?.titulo?.trim() || 'Sin título';
+  async eliminar(id: string): Promise<void> {
+    const titulo = this.lista.documentos().find((d) => d.id === id)?.titulo?.trim() || 'Sin título';
     const confirmado = await firstValueFrom(
       this.dialog
         .open<ConfirmarDialog, ConfirmarDatos, boolean>(ConfirmarDialog, {

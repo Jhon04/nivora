@@ -1,693 +1,126 @@
 <div class="app" [class.colapsada]="sidebarColapsada()">
-  <aside class="sidebar">
-    <div class="side-head">
-      <div class="side-top">
-        <button
-          type="button"
-          class="hamburguesa"
-          (click)="toggleSidebar()"
-          [title]="sidebarColapsada() ? 'Expandir menú' : 'Contraer menú'"
-          aria-label="Contraer o expandir menú">
-          <span class="material-icons">menu</span>
-        </button>
-        @if (!sidebarColapsada()) {
-          <!-- Selector de bóveda: es el "dónde estoy" de la app. -->
-          <button
-            type="button"
-            class="btn-boveda"
-            cdkOverlayOrigin
-            #origenBovedas="cdkOverlayOrigin"
-            [disabled]="cambiandoBoveda()"
-            (click)="menuBovedas.set(!menuBovedas())"
-            [title]="bovedas.activa()?.nombre || 'Nivora'">
-            <h1>{{ bovedas.activa()?.nombre || 'Nivora' }}</h1>
-            @if (bovedas.sinAcceso()) {
-              <span class="material-icons btn-boveda-ojo" title="Sin acceso">link_off</span>
-            } @else if (bovedas.soloLectura()) {
-              <span class="material-icons btn-boveda-ojo" title="Solo lectura">visibility</span>
-            }
-            <span class="material-icons btn-boveda-caret">expand_more</span>
-          </button>
-
-          <!-- Dentro del mismo @if que el botón: en Angular 17+ cada bloque de
-               control de flujo es un ámbito propio y `origenBovedas` no se vería
-               desde fuera. No pinta nada aquí (el overlay va portalado). -->
-          <ng-template
-            cdkConnectedOverlay
-            [cdkConnectedOverlayOrigin]="origenBovedas"
-            [cdkConnectedOverlayOpen]="menuBovedas()"
-            [cdkConnectedOverlayPositions]="posicionesMenu"
-            [cdkConnectedOverlayPush]="true"
-            [cdkConnectedOverlayHasBackdrop]="true"
-            cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
-            (backdropClick)="menuBovedas.set(false)"
-            (detach)="menuBovedas.set(false)">
-            <div class="menu-titulos menu-bovedas">
-              @for (b of bovedas.lista(); track b.id) {
-                <button
-                  type="button"
-                  class="menu-item"
-                  [class.activo]="b.id === bovedas.activa()?.id"
-                  (click)="cambiarBoveda(b.id)">
-                  <span class="material-icons menu-ico">
-                    {{ b.id === bovedas.activa()?.id ? 'check' : 'folder' }}
-                  </span>
-                  {{ b.nombre }}
-                  @if (b.sinAcceso) {
-                    <span class="material-icons menu-ojo" title="Sin acceso">link_off</span>
-                  } @else if (b.soloLectura) {
-                    <span class="material-icons menu-ojo" title="Solo lectura">visibility</span>
-                  }
-                </button>
-              }
-              <div class="menu-sep"></div>
-              <!-- Crear se hace aquí mismo: abrir un diálogo solo para escribir
-                   un nombre sería más ceremonia que la propia acción. -->
-              <form class="menu-nueva" (submit)="crearBoveda(); $event.preventDefault()">
-                <input
-                  type="text"
-                  [ngModel]="nombreBovedaNueva()"
-                  (ngModelChange)="nombreBovedaNueva.set($event)"
-                  name="nombreBoveda"
-                  placeholder="Nueva bóveda…"
-                  aria-label="Nombre de la bóveda nueva" />
-                <button type="submit" [disabled]="!nombreBovedaNueva().trim()" aria-label="Crear bóveda">
-                  <span class="material-icons">add</span>
-                </button>
-              </form>
-            </div>
-          </ng-template>
-        }
-      </div>
-
-      @if (sidebarColapsada()) {
-        @if (!bovedas.soloLectura()) {
-          <button type="button" class="ico-btn" (click)="nuevo()" title="Nuevo documento">
-            <span class="material-icons">add</span>
-          </button>
-        }
-      } @else {
-        @if (bovedas.soloLectura()) {
-          <p class="aviso-lectura">
-            <span class="material-icons">visibility</span>
-            Solo lectura — no tienes permiso de escritura en este cuaderno
-          </p>
-        } @else {
-          <button mat-flat-button color="primary" (click)="nuevo()">
-            <mat-icon>add</mat-icon> Nuevo
-          </button>
-        }
-
-        <div class="buscador">
-          <span class="material-icons">search</span>
-          <input
-            type="search"
-            [ngModel]="busqueda()"
-            (ngModelChange)="onBuscar($event)"
-            placeholder="Buscar en documentos…"
-            aria-label="Buscar" />
-          @if (busqueda()) {
-            <button type="button" class="buscador-limpiar" (click)="limpiarBusqueda()" aria-label="Limpiar búsqueda">
-              <span class="material-icons">close</span>
-            </button>
-          }
-        </div>
-      }
-    </div>
-
-    <!-- Zona con scroll propio: así el pie (ajustes) queda siempre visible. -->
-    <div class="side-lista">
-    @if (sidebarColapsada()) {
-      <!-- Vista colapsada: solo el icono de cada documento -->
-      <div class="lista-iconos">
-        @for (d of documentosVisibles(); track d.id) {
-          <button
-            type="button"
-            class="doc-ico-btn"
-            [class.sel]="actual()?.id === d.id"
-            (click)="abrir(d.id)"
-            [title]="d.titulo || 'Sin título'">
-            @if (imagenIcono(d.icono); as src) {
-              <img class="icono-img" [src]="src" alt="" />
-            } @else {
-              {{ d.icono || '📄' }}
-            }
-          </button>
-        }
-      </div>
-    } @else if (busqueda().trim()) {
-      <!-- Resultados de búsqueda -->
-      @if (resultados().length === 0) {
-        <p class="vacio">Sin resultados.</p>
-      } @else {
-        <mat-nav-list>
-          @for (r of resultados(); track r.id) {
-            <a mat-list-item lines="2" (click)="abrir(r.id)" [class.sel]="actual()?.id === r.id">
-              <span matListItemTitle>
-                @if (imagenIcono(r.icono); as src) {
-                  <img class="icono-img" [src]="src" alt="" />
-                } @else {
-                  {{ r.icono || '📄' }}
-                }
-                @if (r.titulo) {
-                  @for (p of partesFragmento(r.titulo); track $index) {
-                    @if (p.hl) { <mark>{{ p.t }}</mark> } @else { <span>{{ p.t }}</span> }
-                  }
-                } @else {
-                  Sin título
-                }
-              </span>
-              <span matListItemLine class="frag">
-                @for (p of partesFragmento(r.fragmento); track $index) {
-                  @if (p.hl) { <mark>{{ p.t }}</mark> } @else { <span>{{ p.t }}</span> }
-                }
-              </span>
-            </a>
-          }
-        </mat-nav-list>
-      }
-    } @else {
-      <!-- Filtro por etiqueta -->
-      @if (etiquetas().length) {
-        <div class="etiquetas-filtro">
-          @for (t of etiquetas(); track t.nombre) {
-            <button
-              type="button"
-              class="chip-tag"
-              [class.activa]="filtroTag() === t.nombre"
-              [style.background]="filtroTag() === t.nombre ? fgTag(t.nombre) : bgTag(t.nombre)"
-              [style.color]="filtroTag() === t.nombre ? '#fff' : fgTag(t.nombre)"
-              (click)="alternarFiltro(t.nombre)">
-              {{ t.nombre }} <span class="chip-usos">{{ t.usos }}</span>
-            </button>
-          }
-        </div>
-      }
-
-      <!-- Lista de documentos (filtrada por etiqueta si procede) -->
-      @if (documentosVisibles().length === 0) {
-        <p class="vacio">{{ filtroTag() ? 'Sin documentos con esa etiqueta.' : 'Sin documentos aún.' }}</p>
-      } @else {
-        <mat-nav-list>
-          @for (d of documentosVisibles(); track d.id) {
-            <a mat-list-item (click)="abrir(d.id)" [class.sel]="actual()?.id === d.id">
-              <span matListItemTitle>
-                @if (imagenIcono(d.icono); as src) {
-                  <img class="icono-img" [src]="src" alt="" />
-                } @else {
-                  {{ d.icono || '📄' }}
-                }
-                {{ d.titulo || 'Sin título' }}
-                @if (d.bloqueada) {
-                  <span class="material-icons candado-mini" title="Bloqueada">lock</span>
-                }
-              </span>
-              @if (!bovedas.soloLectura()) {
-                <button
-                  mat-icon-button
-                  matListItemMeta
-                  (click)="eliminar(d.id, $event)"
-                  aria-label="Eliminar documento">
-                  <mat-icon>delete</mat-icon>
-                </button>
-              }
-            </a>
-          }
-        </mat-nav-list>
-      }
-    }
-    </div>
-
-    <!-- Pie: configuración (el tema vive dentro, en «Apariencia»). -->
-    <div class="side-pie">
-      <button
-        type="button"
-        class="btn-ajustes"
-        (click)="abrirConfiguracion()"
-        title="Configuración"
-        aria-label="Configuración">
-        <span class="material-icons">settings</span>
-        @if (!sidebarColapsada()) {
-          <span class="btn-ajustes-txt">Configuración</span>
-        }
-        @if (sincro.sincronizando()) {
-          <span class="punto-sincro" title="Sincronizando…"></span>
-        }
-      </button>
-    </div>
-  </aside>
+  <app-barra-lateral
+    [colapsada]="sidebarColapsada()"
+    [seleccionado]="actual()?.id ?? null"
+    [cambiandoBoveda]="cambiandoBoveda()"
+    (alternarColapsada)="toggleSidebar()"
+    (abrirDoc)="abrir($event)"
+    (nuevoDoc)="nuevo()"
+    (eliminarDoc)="eliminar($event)"
+    (abrirConfiguracion)="abrirConfiguracion()"
+    (cambiarBoveda)="cambiarBoveda($event)"
+    (crearBoveda)="crearBoveda($event)" />
 
   <main class="pane">
     <!-- Te han quitado el acceso al repositorio (o lo han borrado/renombrado).
          La bóveda NO se borra sola: puede tener notas tuyas, y borrar ficheros
          porque un tercero pulsó algo en GitHub sería una puerta trasera. -->
     @if (bovedas.sinAcceso()) {
-      <div class="aviso-sin-acceso">
-        <span class="material-icons">link_off</span>
-        <div class="aviso-restauradas-txt">
-          <strong>Ya no tienes acceso a este repositorio</strong>
-          <span>
-            «{{ bovedas.activa()?.nombre }}» se queda solo en este equipo y ha dejado de
-            sincronizarse. Sus bloques cifrados tampoco se pueden abrir desde la app.
-          </span>
-        </div>
-        <div class="aviso-sin-acceso-botones">
-          <button mat-stroked-button (click)="reintentarAcceso()">Volver a comprobar</button>
-          <button mat-stroked-button [disabled]="cambiandoBoveda()" (click)="quitarBoveda()">
-            Quitar bóveda
-          </button>
-        </div>
+    <div class="aviso-sin-acceso">
+      <span class="material-icons">link_off</span>
+      <div class="aviso-restauradas-txt">
+        <strong>Ya no tienes acceso a este repositorio</strong>
+        <span>
+          «{{ bovedas.activa()?.nombre }}» se queda solo en este equipo y ha dejado de
+          sincronizarse. Sus bloques cifrados tampoco se pueden abrir desde la app.
+        </span>
       </div>
+      <div class="aviso-sin-acceso-botones">
+        <button mat-stroked-button (click)="reintentarAcceso()">Volver a comprobar</button>
+        <button mat-stroked-button [disabled]="cambiandoBoveda()" (click)="quitarBoveda()">
+          Quitar bóveda
+        </button>
+      </div>
+    </div>
     }
 
     <!-- Alguien cambió una nota bloqueada y tu copia la ha devuelto a su sitio.
          Va aquí y no solo en Ajustes: es algo que quieres enterarte sin ir a
          buscarlo. -->
     @if (sincro.restauradas(); as tocadas) {
-      @if (tocadas.length) {
-        <div class="aviso-restauradas">
-          <span class="material-icons">lock_reset</span>
-          <div class="aviso-restauradas-txt">
-            <strong>
-              {{ tocadas.length === 1
-                  ? 'Se restauró una nota bloqueada'
-                  : 'Se restauraron ' + tocadas.length + ' notas bloqueadas' }}
-            </strong>
-            <span>
-              Alguien las cambió desde fuera de la app. Tu versión ha vuelto a su sitio y la suya
-              quedó guardada al lado, en la carpeta de notas.
-            </span>
-            <span class="aviso-restauradas-lista">
-              @for (n of tocadas; track n.id) {
-                <em>{{ n.titulo || 'Sin título' }}</em>
-              }
-            </span>
-          </div>
-          <button type="button" (click)="descartarRestauradas()" aria-label="Descartar aviso">
-            <span class="material-icons">close</span>
-          </button>
-        </div>
-      }
+    @if (tocadas.length) {
+    <div class="aviso-restauradas">
+      <span class="material-icons">lock_reset</span>
+      <div class="aviso-restauradas-txt">
+        <strong>
+          {{ tocadas.length === 1
+          ? 'Se restauró una nota bloqueada'
+          : 'Se restauraron ' + tocadas.length + ' notas bloqueadas' }}
+        </strong>
+        <span>
+          Alguien las cambió desde fuera de la app. Tu versión ha vuelto a su sitio y la suya
+          quedó guardada al lado, en la carpeta de notas.
+        </span>
+        <span class="aviso-restauradas-lista">
+          @for (n of tocadas; track n.id) {
+          <em>{{ n.titulo || 'Sin título' }}</em>
+          }
+        </span>
+      </div>
+      <button type="button" (click)="descartarRestauradas()" aria-label="Descartar aviso">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+    }
     }
 
     <!-- Hay versión nueva. No se instala sola: descargar y reiniciar en mitad
          de una frase sería peor que el problema que resuelve, así que decide
          el usuario. -->
     @if (actualizaciones.estado() !== 'inactivo' && actualizaciones.estado() !== 'buscando') {
-      <div class="aviso-actualizacion">
-        <span class="material-icons">system_update_alt</span>
-        <div class="aviso-restauradas-txt">
-          @switch (actualizaciones.estado()) {
-            @case ('disponible') {
-              <strong>Nivora {{ actualizaciones.versionNueva() }} está disponible</strong>
-              <span>Se descarga e instala sola; la app se reiniciará al terminar.</span>
-            }
-            @case ('descargando') {
-              <strong>Descargando Nivora {{ actualizaciones.versionNueva() }}…</strong>
-              <span>
-                {{ actualizaciones.progreso() !== null
-                    ? actualizaciones.progreso() + '%'
-                    : 'Preparando…' }}
-              </span>
-            }
-            @case ('lista') {
-              <strong>Actualización instalada</strong>
-              <span>Reiniciando…</span>
-            }
-            @case ('error') {
-              <strong>No se pudo actualizar</strong>
-              <span>{{ actualizaciones.error() }}</span>
-            }
-          }
-        </div>
-        @if (actualizaciones.estado() === 'disponible') {
-          <button type="button" class="aviso-accion" (click)="actualizarAhora()">
-            Actualizar
-          </button>
+    <div class="aviso-actualizacion">
+      <span class="material-icons">system_update_alt</span>
+      <div class="aviso-restauradas-txt">
+        @switch (actualizaciones.estado()) {
+        @case ('disponible') {
+        <strong>Nivora {{ actualizaciones.versionNueva() }} está disponible</strong>
+        <span>Se descarga e instala sola; la app se reiniciará al terminar.</span>
         }
-        @if (actualizaciones.estado() !== 'descargando' && actualizaciones.estado() !== 'lista') {
-          <button
-            type="button"
-            (click)="actualizaciones.descartar()"
-            aria-label="Descartar aviso de actualización"
-          >
-            <span class="material-icons">close</span>
-          </button>
+        @case ('descargando') {
+        <strong>Descargando Nivora {{ actualizaciones.versionNueva() }}…</strong>
+        <span>
+          {{ actualizaciones.progreso() !== null
+          ? actualizaciones.progreso() + '%'
+          : 'Preparando…' }}
+        </span>
+        }
+        @case ('lista') {
+        <strong>Actualización instalada</strong>
+        <span>Reiniciando…</span>
+        }
+        @case ('error') {
+        <strong>No se pudo actualizar</strong>
+        <span>{{ actualizaciones.error() }}</span>
+        }
         }
       </div>
+      @if (actualizaciones.estado() === 'disponible') {
+      <button type="button" class="aviso-accion" (click)="actualizarAhora()">
+        Actualizar
+      </button>
+      }
+      @if (actualizaciones.estado() !== 'descargando' && actualizaciones.estado() !== 'lista') {
+      <button type="button" (click)="actualizaciones.descartar()" aria-label="Descartar aviso de actualización">
+        <span class="material-icons">close</span>
+      </button>
+      }
+    </div>
     }
 
     @if (actual(); as doc) {
-      <!-- Barra fija arriba: una sola fila; si no cabe, scroll horizontal
-           (rueda o arrastrando con el ratón) en vez de saltar de línea. -->
-      <div class="toolbar" appDragScroll>
-        <div class="tb-group">
-          <button type="button" class="tb-btn" (click)="ed.undo()" title="Deshacer">
-            <span class="material-icons">undo</span>
-          </button>
-          <button type="button" class="tb-btn" (click)="ed.redo()" title="Rehacer">
-            <span class="material-icons">redo</span>
-          </button>
-        </div>
+    <!-- Barra de herramientas: recibe el editor y actúa sobre él. Se queda
+         fuera del contenedor con scroll, así siempre está arriba. -->
+    <app-barra-herramientas [ed]="ed" />
 
-        <span class="tb-sep"></span>
-
-        <div class="tb-group tb-titulos">
-          <button
-            type="button"
-            class="tb-btn"
-            cdkOverlayOrigin
-            #origenTitulos="cdkOverlayOrigin"
-            [class.activo]="ed.isActive('heading')"
-            (click)="menuTitulos.set(!menuTitulos())"
-            title="Títulos">
-            <span class="tb-h">H</span>
-            <span class="material-icons tb-caret">expand_more</span>
-          </button>
-        </div>
-
-        <ng-template
-          cdkConnectedOverlay
-          [cdkConnectedOverlayOrigin]="origenTitulos"
-          [cdkConnectedOverlayOpen]="menuTitulos()"
-          [cdkConnectedOverlayPositions]="posicionesMenu"
-          [cdkConnectedOverlayPush]="true"
-          [cdkConnectedOverlayHasBackdrop]="true"
-          cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
-          (backdropClick)="menuTitulos.set(false)"
-          (detach)="menuTitulos.set(false)">
-          <div class="menu-titulos">
-            <button type="button" class="menu-item" [class.activo]="ed.isActive('heading', { level: 1 })" (click)="ed.toggleHeading(1); menuTitulos.set(false)">
-              <span class="h-badge">H1</span> Título 1
-            </button>
-            <button type="button" class="menu-item" [class.activo]="ed.isActive('heading', { level: 2 })" (click)="ed.toggleHeading(2); menuTitulos.set(false)">
-              <span class="h-badge">H2</span> Título 2
-            </button>
-            <button type="button" class="menu-item" [class.activo]="ed.isActive('heading', { level: 3 })" (click)="ed.toggleHeading(3); menuTitulos.set(false)">
-              <span class="h-badge">H3</span> Título 3
-            </button>
-            <button type="button" class="menu-item" [class.activo]="ed.isActive('heading', { level: 4 })" (click)="ed.toggleHeading(4); menuTitulos.set(false)">
-              <span class="h-badge">H4</span> Título 4
-            </button>
-          </div>
-        </ng-template>
-
-        <span class="tb-sep"></span>
-
-        <div class="tb-group">
-          <button type="button" class="tb-btn" (click)="ed.toggleBold()" [class.activo]="ed.isActive('bold')" title="Negrita">
-            <span class="material-icons">format_bold</span>
-          </button>
-          <button type="button" class="tb-btn" (click)="ed.toggleItalic()" [class.activo]="ed.isActive('italic')" title="Cursiva">
-            <span class="material-icons">format_italic</span>
-          </button>
-          <button type="button" class="tb-btn" (click)="ed.toggleUnderline()" [class.activo]="ed.isActive('underline')" title="Subrayado">
-            <span class="material-icons">format_underlined</span>
-          </button>
-          <button type="button" class="tb-btn" (click)="ed.toggleStrike()" [class.activo]="ed.isActive('strike')" title="Tachado">
-            <span class="material-icons">format_strikethrough</span>
-          </button>
-          <button type="button" class="tb-btn" (click)="ed.toggleCode()" [class.activo]="ed.isActive('code')" title="Código en línea">
-            <span class="material-icons">code</span>
-          </button>
-        </div>
-
-        <span class="tb-sep"></span>
-
-        <div class="tb-group">
-          <button
-            type="button"
-            class="tb-btn"
-            cdkOverlayOrigin
-            #origenListas="cdkOverlayOrigin"
-            [class.activo]="ed.isActive('bloqueLista')"
-            (click)="menuListas.set(!menuListas())"
-            title="Listas">
-            <span class="material-icons">format_list_bulleted</span>
-            <span class="material-icons tb-caret">expand_more</span>
-          </button>
-        </div>
-
-        <ng-template
-          cdkConnectedOverlay
-          [cdkConnectedOverlayOrigin]="origenListas"
-          [cdkConnectedOverlayOpen]="menuListas()"
-          [cdkConnectedOverlayPositions]="posicionesMenu"
-          [cdkConnectedOverlayPush]="true"
-          [cdkConnectedOverlayHasBackdrop]="true"
-          cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
-          (backdropClick)="menuListas.set(false)"
-          (detach)="menuListas.set(false)">
-          <div class="menu-titulos">
-            <button type="button" class="menu-item" [class.activo]="ed.listaActiva('vinetas')" (click)="ed.toggleBullet(); menuListas.set(false)">
-              <span class="material-icons menu-ico">format_list_bulleted</span> Lista con viñetas
-            </button>
-            <button type="button" class="menu-item" [class.activo]="ed.listaActiva('numerada')" (click)="ed.toggleOrdered(); menuListas.set(false)">
-              <span class="material-icons menu-ico">format_list_numbered</span> Lista numerada
-            </button>
-            <button type="button" class="menu-item" [class.activo]="ed.listaActiva('tarea')" (click)="ed.toggleTasks(); menuListas.set(false)">
-              <span class="material-icons menu-ico">checklist</span> Lista de tareas
-            </button>
-          </div>
-        </ng-template>
-
-        <span class="tb-sep"></span>
-
-        <div class="tb-group">
-          <button
-            type="button"
-            class="tb-btn"
-            cdkOverlayOrigin
-            #origenAlinear="cdkOverlayOrigin"
-            [class.activo]="ed.isActive({ textAlign: 'center' }) || ed.isActive({ textAlign: 'right' }) || ed.isActive({ textAlign: 'justify' })"
-            (click)="menuAlinear.set(!menuAlinear())"
-            title="Alineación">
-            <span class="material-icons">format_align_left</span>
-            <span class="material-icons tb-caret">expand_more</span>
-          </button>
-        </div>
-
-        <ng-template
-          cdkConnectedOverlay
-          [cdkConnectedOverlayOrigin]="origenAlinear"
-          [cdkConnectedOverlayOpen]="menuAlinear()"
-          [cdkConnectedOverlayPositions]="posicionesMenu"
-          [cdkConnectedOverlayPush]="true"
-          [cdkConnectedOverlayHasBackdrop]="true"
-          cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
-          (backdropClick)="menuAlinear.set(false)"
-          (detach)="menuAlinear.set(false)">
-          <div class="menu-titulos">
-            <button type="button" class="menu-item" [class.activo]="ed.isActive({ textAlign: 'left' })" (click)="ed.setAlineacion('left'); menuAlinear.set(false)">
-              <span class="material-icons menu-ico">format_align_left</span> Izquierda
-            </button>
-            <button type="button" class="menu-item" [class.activo]="ed.isActive({ textAlign: 'center' })" (click)="ed.setAlineacion('center'); menuAlinear.set(false)">
-              <span class="material-icons menu-ico">format_align_center</span> Centrar
-            </button>
-            <button type="button" class="menu-item" [class.activo]="ed.isActive({ textAlign: 'right' })" (click)="ed.setAlineacion('right'); menuAlinear.set(false)">
-              <span class="material-icons menu-ico">format_align_right</span> Derecha
-            </button>
-            <button type="button" class="menu-item" [class.activo]="ed.isActive({ textAlign: 'justify' })" (click)="ed.setAlineacion('justify'); menuAlinear.set(false)">
-              <span class="material-icons menu-ico">format_align_justify</span> Justificar
-            </button>
-          </div>
-        </ng-template>
-
-        <span class="tb-sep"></span>
-
-        <!-- Color de texto -->
-        <div class="tb-group">
-          <button
-            type="button"
-            class="tb-btn"
-            cdkOverlayOrigin
-            #origenColorTxt="cdkOverlayOrigin"
-            [class.activo]="!!ed.colorTextoActual()"
-            (click)="menuColorTexto.set(!menuColorTexto())"
-            title="Color de texto">
-            <span class="color-a">
-              A
-              <span class="color-bar txt" [style.--c]="ed.colorTextoActual() || 'currentColor'"></span>
-            </span>
-            <span class="material-icons tb-caret">expand_more</span>
-          </button>
-        </div>
-
-        <ng-template
-          cdkConnectedOverlay
-          [cdkConnectedOverlayOrigin]="origenColorTxt"
-          [cdkConnectedOverlayOpen]="menuColorTexto()"
-          [cdkConnectedOverlayPositions]="posicionesMenu"
-          [cdkConnectedOverlayPush]="true"
-          [cdkConnectedOverlayHasBackdrop]="true"
-          cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
-          (backdropClick)="menuColorTexto.set(false)"
-          (detach)="menuColorTexto.set(false)">
-          <div class="menu-colores">
-            <div class="swatches">
-              @for (c of coloresTexto; track c) {
-                <button type="button" class="swatch txt" [class.sel]="ed.colorTextoActual() === c" [style.--c]="c" [title]="c" (click)="ed.setColorTexto(c); menuColorTexto.set(false)"></button>
-              }
-            </div>
-            <button type="button" class="menu-item quitar" (click)="ed.quitarColorTexto(); menuColorTexto.set(false)">
-              <span class="material-icons menu-ico">format_color_reset</span> Quitar color
-            </button>
-          </div>
-        </ng-template>
-
-        <!-- Resaltado -->
-        <div class="tb-group">
-          <button
-            type="button"
-            class="tb-btn"
-            cdkOverlayOrigin
-            #origenResaltado="cdkOverlayOrigin"
-            [class.activo]="ed.isActive('highlight')"
-            (click)="menuResaltado.set(!menuResaltado())"
-            title="Resaltado">
-            <span class="color-hl">
-              <span class="material-icons">brush</span>
-              <span class="color-bar hl" [style.--c]="ed.resaltadoActual() || 'transparent'"></span>
-            </span>
-            <span class="material-icons tb-caret">expand_more</span>
-          </button>
-        </div>
-
-        <ng-template
-          cdkConnectedOverlay
-          [cdkConnectedOverlayOrigin]="origenResaltado"
-          [cdkConnectedOverlayOpen]="menuResaltado()"
-          [cdkConnectedOverlayPositions]="posicionesMenu"
-          [cdkConnectedOverlayPush]="true"
-          [cdkConnectedOverlayHasBackdrop]="true"
-          cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
-          (backdropClick)="menuResaltado.set(false)"
-          (detach)="menuResaltado.set(false)">
-          <div class="menu-colores">
-            <div class="swatches">
-              @for (c of coloresResaltado; track c) {
-                <button type="button" class="swatch hl" [class.sel]="ed.resaltadoActual() === c" [style.--c]="c" [title]="c" (click)="ed.setResaltado(c); menuResaltado.set(false)"></button>
-              }
-            </div>
-            <button type="button" class="menu-item quitar" (click)="ed.quitarResaltado(); menuResaltado.set(false)">
-              <span class="material-icons menu-ico">format_color_reset</span> Quitar resaltado
-            </button>
-          </div>
-        </ng-template>
-
-        <span class="tb-sep"></span>
-
-        <div class="tb-group">
-          <button type="button" class="tb-btn" (click)="ed.toggleQuote()" [class.activo]="ed.isActive('blockquote')" title="Cita">
-            <span class="material-icons">format_quote</span>
-          </button>
-          <button type="button" class="tb-btn" (click)="ed.toggleCodeBlock()" [class.activo]="ed.isActive('codeBlock')" title="Bloque de código">
-            <span class="material-icons">data_object</span>
-          </button>
-          <button type="button" class="tb-btn" (click)="ed.setDivisor()" title="Divisor">
-            <span class="material-icons">horizontal_rule</span>
-          </button>
-        </div>
-
-        <span class="tb-sep"></span>
-
-        <div class="tb-group tb-enlace">
-          <button
-            type="button"
-            class="tb-btn"
-            cdkOverlayOrigin
-            #origenEnlace="cdkOverlayOrigin"
-            [class.activo]="ed.isActive('link')"
-            (click)="enlaceAbierto() ? enlaceAbierto.set(false) : abrirEnlace(ed.enlaceActual())"
-            title="Enlace">
-            <span class="material-icons">link</span>
-          </button>
-        </div>
-
-        <ng-template
-          cdkConnectedOverlay
-          [cdkConnectedOverlayOrigin]="origenEnlace"
-          [cdkConnectedOverlayOpen]="enlaceAbierto()"
-          [cdkConnectedOverlayPositions]="posicionesMenu"
-          [cdkConnectedOverlayPush]="true"
-          [cdkConnectedOverlayHasBackdrop]="true"
-          cdkConnectedOverlayBackdropClass="cdk-overlay-transparent-backdrop"
-          (backdropClick)="enlaceAbierto.set(false)"
-          (detach)="enlaceAbierto.set(false)">
-          <div class="enlace-pop" (keydown.escape)="enlaceAbierto.set(false)">
-            <input
-              class="enlace-input"
-              type="url"
-              [ngModel]="enlaceUrl()"
-              (ngModelChange)="enlaceUrl.set($event)"
-              (keydown.enter)="ed.aplicarEnlace(enlaceUrl()); enlaceAbierto.set(false)"
-              placeholder="https://…  o  correo@dominio" />
-            <button
-              type="button"
-              class="mini-btn"
-              (click)="ed.aplicarEnlace(enlaceUrl()); enlaceAbierto.set(false)">
-              Aplicar
-            </button>
-            @if (ed.isActive('link')) {
-              <button
-                type="button"
-                class="mini-btn"
-                (click)="ed.quitarEnlace(); enlaceAbierto.set(false)">
-                Quitar
-              </button>
-            }
-          </div>
-        </ng-template>
-
-        <span class="tb-spacer"></span>
-
-        <button
-          type="button"
-          class="tb-btn"
-          [class.activo]="indiceAbierto()"
-          (click)="alternarIndice()"
-          title="Índice de la nota (títulos)">
-          <span class="material-icons">toc</span>
-        </button>
-
-        <button type="button" class="tb-btn tb-insertar" (click)="ed.elegirImagen()" title="Insertar imagen desde archivo">
-          <span class="material-icons">image</span> Insertar
-        </button>
-
-        <!-- El candado solo lo mueve el dueño de la bóveda. Rust lo comprueba
-             igualmente: esto es la comodidad, no la defensa. -->
-        @if (bovedas.soyDueno() && !bovedas.soloLectura()) {
-          <button
-            type="button"
-            class="tb-btn"
-            [class.activo]="actual()?.bloqueada"
-            (click)="alternarBloqueo()"
-            [title]="actual()?.bloqueada
-              ? 'Bloqueada: los colaboradores solo pueden leerla'
-              : 'Bloquear: que los colaboradores no puedan cambiarla'">
-            <span class="material-icons">{{ actual()?.bloqueada ? 'lock' : 'lock_open' }}</span>
-          </button>
-        }
-
-        <div class="estado-guardado" [attr.data-estado]="estadoGuardado()" title="Guardado automático (Ctrl+S para forzar)">
-          @switch (estadoGuardado()) {
-            @case ('guardando') { <span class="material-icons girando">sync</span> Guardando… }
-            @case ('pendiente') { <span class="material-icons">edit</span> Sin guardar }
-            @case ('guardado') { <span class="material-icons">cloud_done</span> Guardado }
-            @case ('error') { <span class="material-icons">error_outline</span> Error al guardar }
-          }
-        </div>
-      </div>
-
-      <!-- Documento y su índice, uno al lado del otro y por debajo de la barra
+    <!-- Documento y su índice, uno al lado del otro y por debajo de la barra
            de herramientas (que cruza los dos). -->
-      <div class="pane-cuerpo">
+    <div class="pane-cuerpo">
       <!-- Zona con scroll propio: la barra de arriba queda fuera, así la barra
            de desplazamiento empieza por debajo y no la cruza. El scroll se le
            pasa al editor, que es quien sabe qué título toca resaltar. -->
       <div class="pane-scroll" (scroll)="ed.alScroll()">
-      <!-- Portada del documento -->
-      @if (coverUrl(); as cov) {
+        <!-- Portada del documento -->
+        @if (coverUrl(); as cov) {
         <div class="cover-wrap">
           <img class="cover" [src]="cov" alt="Portada del documento" />
           <div class="cover-acciones">
@@ -699,109 +132,134 @@
             </button>
           </div>
         </div>
-      }
+        }
 
-      <!-- Documento (icono + título + cuerpo) con scroll bajo la barra -->
-      <div class="doc-body" [class.con-cover]="!!doc.cover">
-        <div class="doc-encabezado">
-          @if (doc.icono) {
-            <button type="button" class="doc-icono" (click)="toggleIcono()" title="Cambiar icono">
-              @if (imagenIcono(doc.icono); as src) {
+        <!-- Documento (icono + título + cuerpo) con scroll bajo la barra -->
+        <div class="doc-body" [class.con-cover]="!!doc.cover">
+          <!-- Banda entre la portada y el título: el icono de la nota a la
+             izquierda y, aprovechando el hueco que deja a su derecha, el candado
+             y el estado del guardado. Así el título queda limpio y estas dos
+             cosas —que se miran de reojo— no ocupan la barra de arriba. -->
+          <div class="doc-encabezado">
+            <div class="doc-encabezado-izq">
+              @if (doc.icono) {
+              <button type="button" class="doc-icono" (click)="toggleIcono()" title="Cambiar icono">
+                @if (imagenIcono(doc.icono); as src) {
                 <img class="doc-icono-img" [src]="src" alt="Icono de la nota" />
-              } @else {
+                } @else {
                 {{ doc.icono }}
+                }
+              </button>
               }
-            </button>
-          }
 
-          <div class="doc-acciones">
-            @if (puedeEditar()) {
-              @if (!doc.icono) {
+              <div class="doc-acciones">
+                @if (puedeEditar()) {
+                @if (!doc.icono) {
                 <button type="button" class="mini-btn" (click)="toggleIcono()">
                   <span class="material-icons">mood</span> Agregar icono
                 </button>
-              }
-              @if (!doc.cover) {
+                }
+                @if (!doc.cover) {
                 <button type="button" class="mini-btn" (click)="elegirPortada()">
                   <span class="material-icons">image</span> Agregar portada
                 </button>
+                }
+                }
+              </div>
+            </div>
+
+            <!-- Apagados hasta que pasas por encima: no hacen falta siempre. -->
+            <div class="doc-estado">
+              <div class="estado-guardado" [attr.data-estado]="estadoGuardado()"
+                title="Guardado automático (Ctrl+S para forzar)">
+                @switch (estadoGuardado()) {
+                @case ('guardando') { <span class="material-icons girando">sync</span> Guardando… }
+                @case ('pendiente') { <span class="material-icons">edit</span> Sin guardar }
+                @case ('guardado') { <span class="material-icons">cloud_done</span> Guardado }
+                @case ('error') { <span class="material-icons">error_outline</span> Error al guardar }
+                }
+              </div>
+
+              <!-- El candado solo lo mueve el dueño de la bóveda. Rust lo comprueba
+                 igualmente: esto es la comodidad, no la defensa. -->
+              @if (bovedas.soyDueno() && !bovedas.soloLectura()) {
+              <button type="button" class="mini-btn btn-candado" [class.activo]="doc.bloqueada"
+                (click)="alternarBloqueo()" [title]="doc.bloqueada
+                  ? 'Bloqueada: los colaboradores solo pueden leerla'
+                  : 'Bloquear: que los colaboradores no puedan cambiarla'">
+                <span class="material-icons">{{ doc.bloqueada ? 'lock' : 'lock_open' }}</span>
+                {{ doc.bloqueada ? 'Bloqueada' : 'Bloquear' }}
+              </button>
               }
+            </div>
+
+            @if (iconoAbierto()) {
+            <app-emoji-picker (pick)="onIcono($event)" (remove)="onIcono(null)" (subirImagen)="elegirIconoImagen()"
+              (cerrar)="iconoAbierto.set(false)" />
             }
           </div>
 
-          @if (iconoAbierto()) {
-            <app-emoji-picker
-              (pick)="onIcono($event)"
-              (remove)="onIcono(null)"
-              (subirImagen)="elegirIconoImagen()"
-              (cerrar)="iconoAbierto.set(false)" />
-          }
-        </div>
-
-        @if (!puedeEditar() && !bovedas.soloLectura()) {
+          @if (!puedeEditar() && !bovedas.soloLectura()) {
           <p class="aviso-lectura aviso-nota">
             <span class="material-icons">lock</span>
             Nota bloqueada por quien comparte la bóveda: puedes leerla, pero no cambiarla.
           </p>
-        }
+          }
 
-        <input
-          class="titulo"
-          [ngModel]="doc.titulo"
-          (ngModelChange)="onTitulo($event)"
-          [readonly]="!puedeEditar()"
-          placeholder="Sin título" />
+          <input class="titulo" [ngModel]="doc.titulo" (ngModelChange)="onTitulo($event)" [readonly]="!puedeEditar()"
+            placeholder="Sin título" />
 
-        <!-- Etiquetas del documento -->
-        <div class="doc-etiquetas">
-          @for (t of doc.tags ?? []; track t) {
+          <!-- Etiquetas del documento -->
+          <div class="doc-etiquetas">
+            @for (t of doc.tags ?? []; track t) {
             <span class="chip-tag" [style.background]="bgTag(t)" [style.color]="fgTag(t)">
               {{ t }}
               @if (puedeEditar()) {
-                <button type="button" class="chip-x" (click)="quitarEtiqueta(t)" aria-label="Quitar etiqueta">×</button>
+              <button type="button" class="chip-x" (click)="quitarEtiqueta(t)" aria-label="Quitar etiqueta">×</button>
               }
             </span>
-          }
-          <input
-            class="etiqueta-input"
-            list="lista-etiquetas"
-            [ngModel]="nuevaEtiqueta()"
-            (ngModelChange)="nuevaEtiqueta.set($event)"
-            (keydown.enter)="agregarEtiqueta(nuevaEtiqueta())"
-            placeholder="+ etiqueta" />
-          <datalist id="lista-etiquetas">
-            @for (t of etiquetas(); track t.nombre) {
-              <option [value]="t.nombre"></option>
             }
-          </datalist>
-        </div>
+            <input class="etiqueta-input" list="lista-etiquetas" [ngModel]="nuevaEtiqueta()"
+              (ngModelChange)="nuevaEtiqueta.set($event)" (keydown.enter)="agregarEtiqueta(nuevaEtiqueta())"
+              placeholder="+ etiqueta" />
+            <datalist id="lista-etiquetas">
+              @for (t of lista.etiquetas(); track t.nombre) {
+              <option [value]="t.nombre"></option>
+              }
+            </datalist>
+          </div>
 
-        @if (error(); as err) {
+          <!-- Un fallo del documento (guardar, portada…) o de la lista (leer del
+               disco, buscar): los dos se avisan en el mismo sitio. -->
+          @if (error() ?? lista.error(); as err) {
           <p class="error">⚠️ {{ err }}</p>
-        }
+          }
 
-        <app-editor
-          #ed
-          [content]="doc.contenido"
-          [editable]="puedeEditar()"
-          (contentChange)="onContenido($event)" />
+          <app-editor #ed [content]="doc.contenido" [editable]="puedeEditar()" (contentChange)="onContenido($event)" />
+        </div>
       </div>
-      </div>
+
+      <!-- Botón del índice. Flota en la esquina de arriba a la derecha y fuera
+           de la zona con scroll: la nota se desplaza y él se queda, así que se
+           llega siempre sin volver al principio. Con el panel abierto se aparta
+           a su izquierda en vez de quedarse debajo. -->
+      <button type="button" class="btn-indice" [class.abierto]="indiceAbierto()"
+        (click)="alternarIndice()" title="Índice de la nota (títulos)"
+        aria-label="Índice de la nota">
+        <span class="material-icons">toc</span>
+      </button>
 
       <!-- Índice: los títulos (H1–H4) de la nota, como el de una tesis. Se arma
            solo a partir del documento, así que no hay nada que guardar. -->
       @if (indiceAbierto()) {
-        <app-indice-nota
-          [entradas]="ed.indice()"
-          [activo]="ed.tituloActivo()"
-          (irA)="ed.irATitulo($event)"
-          (cerrar)="alternarIndice()" />
+      <app-indice-nota [entradas]="ed.indice()" [activo]="ed.tituloActivo()" (irA)="ed.irATitulo($event)"
+        (cerrar)="alternarIndice()" />
       }
-      </div>
+    </div>
     } @else {
-      <div class="placeholder">
-        <p>Selecciona un documento o crea uno nuevo.</p>
-      </div>
+    <div class="placeholder">
+      <p>Selecciona un documento o crea uno nuevo.</p>
+    </div>
     }
   </main>
 </div>

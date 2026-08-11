@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 
-import { MINIMO_CLAVE, SecretosService } from '../core/secretos.service';
+import { MINIMO_CLAVE, SecretosService } from '../../core/secretos.service';
 
 export interface SecretoDatos {
   etiqueta: string;

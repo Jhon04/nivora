@@ -10,7 +10,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { normalizar } from '../core/texto';
+import { normalizar } from '../../core/texto';
 
 /** Un emoji con sus palabras clave (para el buscador). */
 interface Emoji {

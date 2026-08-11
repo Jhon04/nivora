@@ -125,6 +125,8 @@ class BlockDragView {
 
   /** Contenedor con scroll donde vive el editor, resuelto al empezar a arrastrar. */
   private scroller: HTMLElement | null = null;
+  /** Quién recorta el editor, cacheado (ver `recortador`). */
+  private recorte: HTMLElement | null = null;
   /** Última posición del puntero durante el arrastre. Hace falta guardarla: si
    *  el ratón se queda quieto en el borde no llegan más `mousemove`, pero el
    *  desplazamiento automático sigue y la línea tiene que recalcularse. */
@@ -199,10 +201,17 @@ class BlockDragView {
     if (!this.puntero) return;
     const { x, y } = this.puntero;
     const er = this.view.dom.getBoundingClientRect();
+    /* Franja que de verdad se ve: el editor recortado por su contenedor. Con la
+       nota desplazada, `view.dom` empieza POR ENCIMA del área visible —debajo de
+       la barra de herramientas y de los avisos—, y sin recortar se daba por
+       bueno un puntero que estaba sobre ellos. */
+    const recorte = this.recortador()?.getBoundingClientRect();
+    const arriba = Math.max(er.top, recorte?.top ?? er.top);
+    const abajo = Math.min(er.bottom, recorte?.bottom ?? er.bottom);
     /* Basta con estar a la ALTURA de la línea: sirve el texto, el hueco a su
        derecha y el canalón de la izquierda (donde se dibuja el handle). */
     const enBanda =
-      y >= er.top && y <= er.bottom && x >= er.left - ZONA_IZQUIERDA && x <= er.right + 8;
+      y >= arriba && y <= abajo && x >= er.left - ZONA_IZQUIERDA && x <= er.right + 8;
     if (!enBanda) {
       this.scheduleHide();
       return;
@@ -230,14 +239,26 @@ class BlockDragView {
        mide 2 px y este 24— lo dejaría colgando sobre el bloque de abajo, y
        parecería que es el suyo. En ese caso se centra. */
     const alto = this.handle.offsetHeight || 24;
-    this.handle.style.top =
-      rect.height >= alto
-        ? `${rect.top + 1}px`
-        : `${rect.top + (rect.height - alto) / 2}px`;
+    const ideal =
+      rect.height >= alto ? rect.top + 1 : rect.top + (rect.height - alto) / 2;
+    /* Sujeto a la franja visible. El handle es `fixed` y no lo recorta nadie:
+       un bloque alto cuyo comienzo ya está desplazado fuera de la vista lo
+       dibujaba sobre lo que hubiera arriba. Contra la barra de herramientas no
+       se notaba (va con z-index por encima), pero sobre el aviso de versión
+       nueva sí: aparecía flotando dentro del banner. */
+    const minTop = arriba + 1;
+    const maxTop = Math.max(minTop, abajo - alto - 1);
+    this.handle.style.top = `${Math.min(Math.max(ideal, minTop), maxTop)}px`;
     /* Columna fija en el margen del documento, no relativa al bloque. Los
        números y viñetas viven en el padding de la propia lista, así que
-       colocarlo respecto al <li> lo dejaba justo encima de ellos. */
-    this.handle.style.left = `${this.view.dom.getBoundingClientRect().left - 28}px`;
+       colocarlo respecto al <li> lo dejaba justo encima de ellos.
+
+       Si el bloque ya tiene un control colgado en ese margen —la flecha de
+       plegar de los títulos—, este se aparta a una columna más afuera en vez de
+       taparlo. Se mira el DOM y no el tipo de nodo para no tener que saber aquí
+       qué extensiones existen. */
+    const propio = info.dom.querySelector(':scope > .plegar-caret');
+    this.handle.style.left = `${er.left - (propio ? 50 : 28)}px`;
   }
 
   private scheduleHide = (): void => {
@@ -420,6 +441,27 @@ class BlockDragView {
     if (desdeArriba < BORDE_AUTOSCROLL) return -rampa(BORDE_AUTOSCROLL - desdeArriba);
     if (desdeAbajo < BORDE_AUTOSCROLL) return rampa(BORDE_AUTOSCROLL - desdeAbajo);
     return 0;
+  }
+
+  /**
+   * Antecesor que RECORTA el editor, para saber dónde acaba lo que se ve.
+   *
+   * A diferencia de `buscarScroller`, no exige que esté desplazado ahora mismo
+   * —aquí interesa el borde, que existe igual con la nota entera cabiendo— y se
+   * queda cacheado: esto se consulta en cada `mousemove`.
+   */
+  private recortador(): HTMLElement | null {
+    if (this.recorte?.isConnected) return this.recorte;
+    let el = this.view.dom.parentElement;
+    while (el && el !== document.body) {
+      const desborde = getComputedStyle(el).overflowY;
+      if (desborde === 'auto' || desborde === 'scroll' || desborde === 'hidden') {
+        this.recorte = el;
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
   }
 
   /**

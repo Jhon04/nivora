@@ -3,9 +3,9 @@ import StarterKit from '@tiptap/starter-kit';
 import { Table, TableCell, TableHeader, TableRow } from '@tiptap/extension-table';
 import { TestBed } from '@angular/core/testing';
 
-import { BlockDrag } from './block-drag';
+import { BlockDrag } from './extensiones/block-drag';
 import { EditorComponent } from './editor';
-import { SLASH_ITEMS } from './slash-command';
+import { SLASH_ITEMS } from './extensiones/slash-command';
 
 /** Cuenta de filas y de columnas de la primera tabla del documento. */
 function forma(pm: HTMLElement): { filas: number; cols: number } {

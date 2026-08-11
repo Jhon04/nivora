@@ -718,4 +718,35 @@ describe('BlockDrag · el handle sigue al desplazar', () => {
 
     expect(handle().getBoundingClientRect().top).not.toBe(antes);
   });
+
+  /**
+   * El handle es `fixed`: nada lo recorta. Si se dibujara donde empieza un
+   * bloque cuyo comienzo ya está desplazado fuera de la vista, saldría flotando
+   * ENCIMA de lo que haya arriba. Con la barra de herramientas no se veía (va
+   * por z-index por delante), pero con el aviso de versión nueva sí.
+   */
+  it('no se sale por arriba del contenedor', () => {
+    desplazar(240);
+    const r = caja.getBoundingClientRect();
+    // Justo dentro del borde de arriba: el bloque de aquí empieza más arriba.
+    mover(pm(), r.left + 300, r.top + 2);
+
+    expect(handle().style.display).toBe('flex');
+    expect(handle().getBoundingClientRect().top).toBeGreaterThanOrEqual(r.top);
+  });
+
+  it('el ratón por encima del contenedor no saca el handle', async () => {
+    const r = caja.getBoundingClientRect();
+    mover(pm(), r.left + 300, r.top + 100);
+    expect(handle().style.display).toBe('flex');
+
+    // Donde vive la barra de herramientas o un aviso: ahí no hay nota, aunque
+    // el rectángulo del editor sí llegue (está desplazado por debajo).
+    desplazar(240);
+    mover(pm(), r.left + 300, r.top - 20);
+    // Esconderlo va con retraso, para no parpadear al pasar por un hueco.
+    await new Promise((listo) => setTimeout(listo, 200));
+
+    expect(handle().style.display).toBe('none');
+  });
 });

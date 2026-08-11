@@ -1,8 +1,8 @@
 import { Component, computed, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
-import { normalizar } from '../core/texto';
-import { EntradaIndice } from '../editor/indice';
+import { normalizar } from '../../core/texto';
+import { EntradaIndice } from '../../editor/indice';
 
 /** Una entrada con el puesto que ocupa en el índice completo (ver `visibles`). */
 interface EntradaVisible {

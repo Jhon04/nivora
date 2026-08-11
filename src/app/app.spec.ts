@@ -215,8 +215,8 @@ describe('App · botón de ajustes', () => {
     const el = fixture.nativeElement as HTMLElement;
     // El fixture vive fuera del layout de la app, así que se le da un ancho a
     // la barra lateral para que el pie tenga algo que repartir.
-    const aside = el.querySelector('aside') as HTMLElement;
-    aside.style.width = colapsada ? '56px' : '240px';
+    const lateral = el.querySelector('app-barra-lateral') as HTMLElement;
+    lateral.style.width = colapsada ? '56px' : '240px';
     return {
       boton: el.querySelector('.btn-ajustes') as HTMLElement,
       pie: el.querySelector('.side-pie') as HTMLElement,
@@ -325,14 +325,15 @@ describe('App · cambio de bóveda', () => {
 
   it('limpia la búsqueda y el filtro por etiqueta', async () => {
     const fixture = await conDocumentoAbierto([]);
-    interno(fixture).busqueda.set('presupuesto');
-    interno(fixture).filtroTag.set('trabajo');
+    const lista = interno(fixture).lista;
+    lista.busqueda.set('presupuesto');
+    lista.filtroTag.set('trabajo');
 
     await interno(fixture).cambiarBoveda(EQUIPO.id);
 
     // Apuntaban a notas de la bóveda anterior, que aquí no existen.
-    expect(interno(fixture).busqueda()).toBe('');
-    expect(interno(fixture).filtroTag()).toBeNull();
+    expect(lista.busqueda()).toBe('');
+    expect(lista.filtroTag()).toBeNull();
   });
 
   it('recarga la lista con las notas de la bóveda nueva', async () => {
@@ -362,24 +363,21 @@ describe('App · cambio de bóveda', () => {
     const orden: string[] = [];
     const fixture = await conDocumentoAbierto(orden);
     interno(fixture).programarGuardado();
-    interno(fixture).nombreBovedaNueva.set('Recetas');
     orden.length = 0;
 
-    await interno(fixture).crearBoveda();
+    await interno(fixture).crearBoveda('Recetas');
 
     expect(orden.indexOf('guardar')).toBeLessThan(orden.indexOf('crear'));
     expect(orden.indexOf('assets')).toBeGreaterThan(orden.indexOf('crear'));
     expect(interno(fixture).actual()).toBeNull();
-    expect(interno(fixture).nombreBovedaNueva()).toBe('');
   });
 
   it('sin nombre no crea ninguna bóveda', async () => {
     const orden: string[] = [];
     const fixture = await conDocumentoAbierto(orden);
-    interno(fixture).nombreBovedaNueva.set('   ');
     orden.length = 0;
 
-    await interno(fixture).crearBoveda();
+    await interno(fixture).crearBoveda('   ');
 
     expect(orden).toEqual([]);
   });
