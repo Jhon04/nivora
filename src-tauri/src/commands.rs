@@ -758,6 +758,26 @@ pub fn guardar_asset(
     escribir_asset(&bovedas.ruta().join("assets"), &bovedas.db(), &bytes, &ext)
 }
 
+/// Escribe un fichero **fuera de la bóveda**, en la ruta que haya elegido el
+/// usuario en el diálogo nativo del sistema (exportar un esquema a SVG o PNG).
+///
+/// No lleva `exigir_escritura`: eso protege la bóveda, y aquí no se toca. Una
+/// bóveda de solo lectura tiene que poder exportar igual — es sacar una copia,
+/// no modificar nada.
+///
+/// La ruta no se valida a mano a propósito: viene del selector del sistema, así
+/// que ya la ha escrito y confirmado la persona que usa la app, y una lista de
+/// carpetas permitidas solo daría falsos «no puedes guardar aquí».
+///
+/// Angular: `invoke('exportar_fichero', { ruta, datosBase64 })`
+#[tauri::command]
+pub fn exportar_fichero(ruta: String, datos_base64: String) -> Result<(), String> {
+    let bytes = general_purpose::STANDARD
+        .decode(datos_base64.as_bytes())
+        .map_err(|e| format!("Datos de exportación ilegibles: {e}"))?;
+    fs::write(&ruta, bytes).map_err(|e| format!("No se pudo escribir {ruta}: {e}"))
+}
+
 /// Lee una imagen del disco SIN guardarla como asset: sus bytes viajan al
 /// webview para poder editarla (anotarla) antes de decidir qué se guarda.
 ///
@@ -859,6 +879,67 @@ pub fn importar_asset(
         .and_then(|e| e.to_str())
         .unwrap_or("png");
     escribir_asset(&bovedas.ruta().join("assets"), &bovedas.db(), &bytes, ext)
+}
+
+#[cfg(test)]
+mod tests_exportar {
+    use super::*;
+
+    fn temporal(nombre: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("{}-{}", nombre, uuid::Uuid::new_v4()))
+    }
+
+    #[test]
+    fn escribe_los_bytes_tal_cual() {
+        let ruta = temporal("export");
+        let contenido = b"<svg xmlns=\"http://www.w3.org/2000/svg\"/>";
+
+        exportar_fichero(
+            ruta.to_string_lossy().into_owned(),
+            general_purpose::STANDARD.encode(contenido),
+        )
+        .unwrap();
+
+        assert_eq!(fs::read(&ruta).unwrap(), contenido);
+        fs::remove_file(&ruta).ok();
+    }
+
+    /// El binario tiene que salir byte a byte: un PNG al que se le cambie un
+    /// solo octeto deja de abrirse.
+    #[test]
+    fn un_binario_no_se_altera() {
+        let ruta = temporal("export-png");
+        let bytes: Vec<u8> = (0u8..=255).collect();
+
+        exportar_fichero(
+            ruta.to_string_lossy().into_owned(),
+            general_purpose::STANDARD.encode(&bytes),
+        )
+        .unwrap();
+
+        assert_eq!(fs::read(&ruta).unwrap(), bytes);
+        fs::remove_file(&ruta).ok();
+    }
+
+    /// El mensaje llega al `console.error` del webview, así que tiene que decir
+    /// qué ruta falló y no solo «error de E/S».
+    #[test]
+    fn una_carpeta_que_no_existe_da_un_error_con_la_ruta() {
+        let ruta = "/no/existe/esta/carpeta/esquema.svg";
+        let e = exportar_fichero(ruta.to_string(), general_purpose::STANDARD.encode("x")).unwrap_err();
+
+        assert!(e.contains(ruta), "el error no dice qué ruta falló: «{e}»");
+    }
+
+    #[test]
+    fn unos_datos_que_no_son_base64_no_escriben_nada() {
+        let ruta = temporal("export-malo");
+        let e = exportar_fichero(ruta.to_string_lossy().into_owned(), "esto no es base64 ###".into())
+            .unwrap_err();
+
+        assert!(e.contains("ilegibles"), "salió «{e}»");
+        assert!(!ruta.exists(), "no puede quedarse un fichero a medias");
+    }
 }
 
 #[cfg(test)]

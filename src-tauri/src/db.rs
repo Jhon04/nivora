@@ -54,11 +54,194 @@ CREATE VIRTUAL TABLE IF NOT EXISTS document_fts USING fts5(
 );
 "#;
 
+/// Palabras que introducen un nombre puesto por la persona, no sintaxis: lo que
+/// va detrás es texto buscable; la palabra en sí, no.
+const CLAVES_MERMAID: [&str; 6] = [
+    "title",
+    "section",
+    "participant",
+    "actor",
+    "subgraph",
+    "class",
+];
+
+/// Líneas que solo dicen cómo se pinta el diagrama. No contienen nada que nadie
+/// vaya a buscar, y `click` además es la directiva que puede abrir un enlace,
+/// así que ni se mira.
+const LINEAS_DE_ADORNO: [&str; 4] = ["style", "classDef", "linkStyle", "click"];
+
+/// Caracteres que solo dan forma al nodo y nunca son parte de la etiqueta.
+const ADORNOS: &[char] = &['[', ']', '(', ')', '{', '}', '|', '/', '\\', '"', '\''];
+
+/// El cierre que corresponde a cada apertura de etiqueta.
+fn cierre_de(c: char) -> Option<char> {
+    match c {
+        '[' => Some(']'),
+        '(' => Some(')'),
+        '{' => Some('}'),
+        // `|` abre y cierra con el mismo carácter (etiquetas de flecha).
+        '|' => Some('|'),
+        _ => None,
+    }
+}
+
+/// Texto **legible** de un diagrama Mermaid: lo que alguien escribió y luego va
+/// a buscar.
+///
+/// Se queda con lo que va dentro de delimitadores (`[Servidor web]`,
+/// `(Base de datos)`, `{¿Autenticado?}`, `|reintenta|`), con lo que sigue a las
+/// palabras de `CLAVES_MERMAID`, y con lo que sigue a `:` en las líneas sin
+/// delimitadores (`Alice->>Bob: Hola`).
+///
+/// Lo importante es lo que deja fuera. `graph`, `TD`, `-->`, `end` y los
+/// identificadores sueltos (`A`, `B`) no van nunca entre delimitadores, así que
+/// no llegan al índice. Sin este filtro, buscar "graph" devolvería todas las
+/// notas que tuvieran un diagrama, y el buscador dejaría de servir.
+///
+/// Es una heurística, no un analizador de Mermaid: cubre los diagramas de flujo
+/// y de secuencia, que son casi todo lo que se usa. Un `gantt` deja fuera parte
+/// de sus nombres — se prefiere perder alguna palabra a meter ruido, porque el
+/// ruido en un índice FTS no se puede filtrar después.
+fn extraer_etiquetas_mermaid(codigo: &str, salida: &mut String) {
+    let mut anadir = |t: &str| {
+        let limpio = t.trim_matches(|c: char| ADORNOS.contains(&c) || c.is_whitespace());
+        if !limpio.is_empty() {
+            salida.push_str(limpio);
+            salida.push(' ');
+        }
+    };
+
+    for linea in codigo.lines() {
+        let recortada = linea.trim();
+        if recortada.is_empty() || LINEAS_DE_ADORNO.iter().any(|p| recortada.starts_with(p)) {
+            continue;
+        }
+
+        // Palabra clave: el nombre va detrás y termina donde empiece un
+        // delimitador, para que `subgraph Red [Producción]` dé «Red» aquí y
+        // «Producción» en el barrido de abajo, sin repetir ninguna.
+        for clave in CLAVES_MERMAID {
+            let Some(resto) = recortada.strip_prefix(clave) else {
+                continue;
+            };
+            // Sin el espacio, `classDiagram` pasaría por un `class …`.
+            if !resto.starts_with(char::is_whitespace) {
+                continue;
+            }
+            let hasta = resto
+                .find(|c: char| cierre_de(c).is_some())
+                .unwrap_or(resto.len());
+            anadir(&resto[..hasta]);
+            break;
+        }
+
+        // Barrido de delimitadores. Cuenta el anidamiento del mismo par para que
+        // `A((Círculo))` se capture entero en vez de cortarse en el primer `)`.
+        let chars: Vec<char> = recortada.chars().collect();
+        let mut i = 0;
+        let mut hubo_delimitador = false;
+        while i < chars.len() {
+            let apertura = chars[i];
+            let Some(cierre) = cierre_de(apertura) else {
+                i += 1;
+                continue;
+            };
+            let mut profundidad = 1;
+            let mut j = i + 1;
+            while j < chars.len() && profundidad > 0 {
+                if chars[j] == cierre {
+                    profundidad -= 1;
+                } else if chars[j] == apertura && apertura != cierre {
+                    profundidad += 1;
+                }
+                j += 1;
+            }
+            if profundidad == 0 {
+                hubo_delimitador = true;
+                anadir(&chars[i + 1..j - 1].iter().collect::<String>());
+                i = j;
+            } else {
+                // Delimitador sin cerrar: el usuario está a medias de escribir,
+                // no es una etiqueta todavía.
+                i += 1;
+            }
+        }
+
+        // `Alice->>Bob: Hola` — el mensaje va detrás de los dos puntos. Solo en
+        // líneas sin delimitadores: si los hay, el texto legible ya ha salido de
+        // ellos y lo que sigue a `:` suele ser metadato.
+        if !hubo_delimitador {
+            if let Some((_, resto)) = recortada.split_once(':') {
+                anadir(resto);
+            }
+        }
+    }
+}
+
 /// Recorre el JSON de bloques (Tiptap) y concatena todo el texto de los nodos
 /// de texto para indexarlo. Cualquier valor bajo la clave `"text"` se acumula.
 fn extraer_texto(valor: &serde_json::Value, salida: &mut String) {
     match valor {
         serde_json::Value::Object(mapa) => {
+            /* Un diagrama guarda su fuente en `attrs.codigo`, que la regla
+               general no ve (solo mira las claves `text`). Ese silencio no
+               sirve: sin tocar nada, los diagramas serían invisibles para la
+               búsqueda y no habría forma de encontrar «la nota del diagrama de
+               despliegue». Se indexan sus etiquetas, nunca su sintaxis. */
+            /* Un esquema guarda su grafo en `attrs.datos`, y sus etiquetas van
+               bajo la clave `texto`, no `text`: la regla general pasa de largo.
+               Aquí no hace falta heurística ninguna —al revés que con Mermaid—
+               porque el formato es nuestro y los textos ya son campos limpios,
+               sin sintaxis alrededor de la que separarlos. */
+            if mapa.get("type").and_then(|v| v.as_str()) == Some("esquema") {
+                let datos = mapa.get("attrs").and_then(|a| a.get("datos"));
+                for lista in ["nodos", "conexiones"] {
+                    let Some(items) = datos.and_then(|d| d.get(lista)).and_then(|v| v.as_array())
+                    else {
+                        continue;
+                    };
+                    for item in items {
+                        if let Some(t) = item.get("texto").and_then(|v| v.as_str()) {
+                            if !t.trim().is_empty() {
+                                salida.push_str(t);
+                                salida.push(' ');
+                            }
+                        }
+                        /* Una tabla lleva además sus columnas. Se indexa el
+                           NOMBRE y no el tipo a propósito: quien busca en sus
+                           notas busca `cliente_id`, no `varchar`, y meter los
+                           tipos llenaría el índice de palabras que salen en
+                           todas las tablas y no distinguen ninguna. */
+                        let Some(columnas) =
+                            item.get("columnas").and_then(|v| v.as_array())
+                        else {
+                            continue;
+                        };
+                        for columna in columnas {
+                            if let Some(n) = columna.get("nombre").and_then(|v| v.as_str()) {
+                                if !n.trim().is_empty() {
+                                    salida.push_str(n);
+                                    salida.push(' ');
+                                }
+                            }
+                        }
+                    }
+                }
+                // Es un `atom`: no hay nada dentro que recorrer.
+                return;
+            }
+
+            if mapa.get("type").and_then(|v| v.as_str()) == Some("diagrama") {
+                if let Some(codigo) = mapa
+                    .get("attrs")
+                    .and_then(|a| a.get("codigo"))
+                    .and_then(|c| c.as_str())
+                {
+                    extraer_etiquetas_mermaid(codigo, salida);
+                }
+                // Es un `atom`: no hay nada dentro que recorrer.
+                return;
+            }
             if let Some(serde_json::Value::String(t)) = mapa.get("text") {
                 salida.push_str(t);
                 salida.push(' ');
@@ -433,6 +616,7 @@ impl Db {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     /// El índice es derivado, pero **no** se recrea de cero al arrancar: solo se
     /// vacían las filas. Sin migrar las columnas, una base de una versión
@@ -466,5 +650,228 @@ mod tests {
         assert!(!docs[0].bloqueada, "las notas de antes no están bloqueadas");
 
         let _ = std::fs::remove_file(&ruta);
+    }
+
+    /// Atajo: las etiquetas de un fragmento de Mermaid, ya separadas.
+    fn etiquetas(codigo: &str) -> Vec<String> {
+        let mut s = String::new();
+        extraer_etiquetas_mermaid(codigo, &mut s);
+        s.split_whitespace().map(str::to_owned).collect()
+    }
+
+    /// La razón de ser de todo esto. Si la sintaxis entrara al índice, buscar
+    /// "graph" devolvería cualquier nota con un diagrama y el buscador dejaría
+    /// de distinguir nada.
+    #[test]
+    fn la_sintaxis_del_diagrama_no_entra_en_el_indice() {
+        let ls = etiquetas("graph TD\n  A[Servidor] --> B[Base de datos]\n  end");
+
+        for ruido in ["graph", "TD", "-->", "end", "A", "B"] {
+            assert!(
+                !ls.iter().any(|t| t == ruido),
+                "«{ruido}» es sintaxis y no debería indexarse; salió {ls:?}"
+            );
+        }
+    }
+
+    /// …y la otra mitad: lo que la persona escribió sí tiene que poder buscarse.
+    #[test]
+    fn las_etiquetas_escritas_a_mano_si_se_indexan() {
+        let ls = etiquetas("graph TD\n  A[Servidor web] --> B[Base de datos]");
+        let texto = ls.join(" ");
+
+        assert!(texto.contains("Servidor web"), "salió {ls:?}");
+        assert!(texto.contains("Base de datos"), "salió {ls:?}");
+    }
+
+    /// Cada forma de nodo trae sus propios adornos alrededor del texto. Ninguno
+    /// puede acabar pegado a la palabra, o la búsqueda no la encontraría.
+    #[test]
+    fn las_formas_no_dejan_adornos_pegados_a_la_etiqueta() {
+        let ls = etiquetas(
+            "flowchart LR\n\
+             A((Círculo))\n\
+             B[/Paralelogramo/]\n\
+             C{{Hexágono}}\n\
+             D{Rombo}\n\
+             E -->|reintenta| F",
+        );
+
+        for esperada in ["Círculo", "Paralelogramo", "Hexágono", "Rombo", "reintenta"] {
+            assert!(
+                ls.iter().any(|t| t == esperada),
+                "faltaba «{esperada}» limpia; salió {ls:?}"
+            );
+        }
+    }
+
+    /// En un diagrama de secuencia el texto no va entre corchetes: va detrás de
+    /// los dos puntos, y los nombres detrás de `participant`.
+    #[test]
+    fn el_diagrama_de_secuencia_indexa_mensajes_y_participantes() {
+        let ls = etiquetas(
+            "sequenceDiagram\n\
+             participant Almacén\n\
+             Alice->>Bob: Pedido aceptado",
+        );
+        let texto = ls.join(" ");
+
+        assert!(texto.contains("Almacén"), "salió {ls:?}");
+        assert!(texto.contains("Pedido aceptado"), "salió {ls:?}");
+        assert!(
+            !ls.iter().any(|t| t == "sequenceDiagram"),
+            "la palabra del tipo de diagrama es sintaxis; salió {ls:?}"
+        );
+    }
+
+    /// Los colores no son contenido. `click` además es la directiva que abre
+    /// enlaces: no indexarla evita que una URL de otra persona aparezca como
+    /// resultado de búsqueda en una bóveda compartida.
+    #[test]
+    fn las_lineas_de_estilo_y_click_se_ignoran() {
+        let ls = etiquetas(
+            "graph TD\n\
+             A[Real]\n\
+             style A fill:#f9f\n\
+             click A href \"https://ejemplo.invalido\"",
+        );
+
+        assert_eq!(ls, vec!["Real"], "solo la etiqueta de verdad; salió {ls:?}");
+    }
+
+    /// `subgraph Red [Producción]` tiene nombre en dos sitios. Los dos valen, y
+    /// ninguno puede salir repetido.
+    #[test]
+    fn el_subgrafo_aporta_sus_dos_nombres_sin_repetir() {
+        let ls = etiquetas("graph TD\n  subgraph Red [Producción]\n  end");
+
+        assert_eq!(ls, vec!["Red", "Producción"], "salió {ls:?}");
+    }
+
+    /// Un delimitador a medio escribir no es una etiqueta. Pasa en cada
+    /// pulsación mientras se teclea, así que no puede reventar ni colarse.
+    #[test]
+    fn un_corchete_sin_cerrar_no_rompe_la_extraccion() {
+        assert_eq!(etiquetas("graph TD\n  A[a medio escrib"), Vec::<String>::new());
+    }
+
+    /// El esquema guarda sus etiquetas bajo `texto`, no bajo `text`, así que sin
+    /// su rama en `extraer_texto` un diagrama dibujado a mano sería invisible
+    /// para la búsqueda por completo.
+    #[test]
+    fn un_esquema_indexa_los_nodos_y_las_flechas() {
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "esquema",
+                "attrs": { "datos": {
+                    "nodos": [
+                        { "id": "a", "x": 0, "y": 0, "texto": "Pasarela de pago", "forma": "proceso" },
+                        { "id": "b", "x": 200, "y": 0, "texto": "", "forma": "decision" }
+                    ],
+                    "conexiones": [{ "id": "c1", "desde": "a", "hasta": "b", "texto": "si falla" }]
+                }}
+            }]
+        });
+
+        let mut texto = String::new();
+        extraer_texto(&doc, &mut texto);
+
+        assert!(texto.contains("Pasarela de pago"), "salió «{texto}»");
+        assert!(texto.contains("si falla"), "la etiqueta de la flecha; salió «{texto}»");
+        // Ni ids ni coordenadas: son datos de dibujo, no algo que nadie busque.
+        assert!(!texto.contains('a') || !texto.contains("200"), "sin ids ni posiciones");
+    }
+
+    /// Una tabla guarda sus campos en `columnas`, fuera de `texto`. Sin esta
+    /// rama, buscar por el nombre de una columna no encontraría el diagrama de
+    /// base de datos donde está dibujada — que es justo para lo que se dibuja.
+    #[test]
+    fn una_tabla_indexa_los_nombres_de_sus_columnas() {
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "esquema",
+                "attrs": { "datos": {
+                    "nodos": [{
+                        "id": "t", "x": 0, "y": 0, "texto": "factura", "forma": "erd-tabla",
+                        "columnas": [
+                            { "nombre": "id", "tipo": "int", "pk": true },
+                            { "nombre": "cliente_id", "tipo": "varchar(60)", "fk": true }
+                        ]
+                    }],
+                    "conexiones": []
+                }}
+            }]
+        });
+
+        let mut texto = String::new();
+        extraer_texto(&doc, &mut texto);
+
+        assert!(texto.contains("factura"), "el nombre de la tabla; salió «{texto}»");
+        assert!(texto.contains("cliente_id"), "el nombre de la columna; salió «{texto}»");
+        // El tipo no: saldría en casi todas las tablas y no distingue ninguna.
+        assert!(!texto.contains("varchar"), "los tipos no se indexan; salió «{texto}»");
+    }
+
+    /// Una tabla con las columnas rotas es exactamente igual de probable que un
+    /// esquema roto, y corre en el mismo sitio: al guardar cada nota.
+    #[test]
+    fn una_tabla_con_columnas_raras_no_rompe_el_indexado() {
+        for columnas in [json!(null), json!("id, nombre"), json!([null, 7, { "nombre": 3 }])] {
+            let doc = json!({
+                "type": "doc",
+                "content": [{
+                    "type": "esquema",
+                    "attrs": { "datos": {
+                        "nodos": [{ "id": "t", "texto": "factura", "columnas": columnas }],
+                        "conexiones": []
+                    }}
+                }]
+            });
+
+            let mut texto = String::new();
+            extraer_texto(&doc, &mut texto);
+            assert!(texto.contains("factura"), "el nombre se sigue indexando");
+        }
+    }
+
+    /// Un esquema a medio hacer o venido de otra versión no puede tumbar el
+    /// indexado, que corre al guardar **cada** nota.
+    #[test]
+    fn un_esquema_con_datos_raros_no_rompe_el_indexado() {
+        for datos in [json!(null), json!("vaya"), json!({ "nodos": "no es una lista" })] {
+            let doc = json!({
+                "type": "doc",
+                "content": [{ "type": "esquema", "attrs": { "datos": datos } }]
+            });
+
+            let mut texto = String::new();
+            extraer_texto(&doc, &mut texto);
+            assert!(texto.trim().is_empty());
+        }
+    }
+
+    /// La prueba de que el nodo encaja con el indexador de verdad: `attrs` es
+    /// territorio que la regla general (claves `text`) no pisa.
+    #[test]
+    fn un_documento_con_diagrama_indexa_sus_etiquetas() {
+        let doc = json!({
+            "type": "doc",
+            "content": [
+                { "type": "paragraph", "content": [{ "type": "text", "text": "Arquitectura" }] },
+                {
+                    "type": "diagrama",
+                    "attrs": { "formato": "mermaid", "codigo": "graph TD\nA[Pasarela de pago]" }
+                }
+            ]
+        });
+
+        let mut texto = String::new();
+        extraer_texto(&doc, &mut texto);
+
+        assert!(texto.contains("Arquitectura"), "el párrafo normal sigue igual");
+        assert!(texto.contains("Pasarela de pago"), "salió «{texto}»");
+        assert!(!texto.contains("graph"), "sin sintaxis; salió «{texto}»");
     }
 }

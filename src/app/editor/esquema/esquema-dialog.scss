@@ -1,0 +1,464 @@
+/* Editor del esquema.
+   A diferencia de la pantalla de anotar imágenes, esta NO va siempre en oscuro:
+   sigue el tema de la app. Allí el fondo oscuro evita que la interfaz compita
+   con la foto; aquí el dibujo se va a ver dentro de la nota, y editarlo con
+   otros colores de los que tendrá luego sería enseñar algo que no es. */
+:host {
+  --barra: 56px;
+  display: block;
+  height: 100%;
+  color: var(--mat-sys-on-surface, #1a1a1a);
+}
+
+.esquemador {
+  position: relative; /* ancla del panel de formas */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--mat-sys-surface, #fff);
+}
+
+/* Panel de formas. Va superpuesto y no empujando la escena: si abrirlo cambiara
+   el alto del lienzo, el dibujo daría un salto — el mismo motivo por el que el
+   pie está siempre puesto. */
+.panel-formas {
+  position: absolute;
+  top: var(--barra);
+  left: 8px;
+  z-index: 5;
+  width: 300px;
+  max-height: calc(100% - var(--barra) - 16px);
+  overflow-y: auto;
+  padding: 10px 12px 14px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container, #fff);
+  box-shadow: 0 12px 32px var(--sombra-color);
+
+  h3 {
+    margin: 10px 0 6px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--texto-tenue);
+  }
+
+  section:first-child h3 {
+    margin-top: 0;
+  }
+
+  .rejilla {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+  }
+
+  .forma {
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    padding: 7px 4px;
+    border-radius: 8px;
+    text-align: center;
+
+    &:hover {
+      background: var(--capa-hover);
+    }
+
+    .mini {
+      width: 44px;
+      height: 30px;
+      /* Misma pareja de colores que en el lienzo: lo que se ve en el menú es lo
+         que va a aparecer. */
+      fill: var(--mat-sys-surface, #fff);
+      stroke: currentColor;
+      stroke-width: 1.4;
+    }
+
+    span {
+      font-size: 0.66rem;
+      line-height: 1.2;
+      color: var(--texto-tenue);
+    }
+  }
+}
+
+/* Lista de columnas de una tabla. Anclada abajo a la izquierda, justo encima
+   del pie del que sale su botón, y superpuesta al lienzo por el mismo motivo que
+   el panel de formas: si empujara la escena, el dibujo daría un salto cada vez
+   que se abre. */
+.panel-columnas {
+  position: absolute;
+  bottom: calc(var(--barra) + 8px);
+  left: 8px;
+  z-index: 5;
+  width: 400px;
+  max-height: calc(100% - var(--barra) * 2 - 24px);
+  overflow-y: auto;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container, #fff);
+  box-shadow: 0 12px 32px var(--sombra-color);
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--texto-tenue);
+  }
+
+  .fila {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-bottom: 4px;
+  }
+
+  /* PK y FK: rótulos y no iconos. Aquí hay sitio de sobra y la palabra no se
+     confunde con nada; en el lienzo, donde el hueco es de doce unidades, van
+     dibujados. */
+  .marca {
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    flex: 0 0 30px;
+    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
+    border-radius: 6px;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--texto-tenue);
+
+    &:hover { background: var(--capa-hover); }
+
+    &.activa {
+      border-color: transparent;
+      background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 20%, transparent);
+      color: var(--mat-sys-primary, #3b82f6);
+    }
+  }
+
+  input {
+    box-sizing: border-box;
+    min-width: 0;
+    height: 26px;
+    padding: 0 7px;
+    border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
+    border-radius: 6px;
+    font: inherit;
+    font-size: 0.8rem;
+    color: inherit;
+    background: none;
+
+    &:focus {
+      outline: none;
+      border-color: var(--mat-sys-primary, #3b82f6);
+    }
+  }
+
+  .nombre { flex: 1 1 auto; }
+  .tipo { flex: 0 0 96px; }
+
+  .orden {
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    flex: 0 0 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    color: var(--texto-tenue);
+
+    .material-icons { font-size: 15px; }
+
+    &:hover:not(:disabled) { background: var(--capa-hover); }
+
+    &:disabled {
+      opacity: 0.28;
+      cursor: default;
+    }
+
+    &.quitar:hover { color: var(--mat-sys-error, #b3261e); }
+  }
+
+  .anadir {
+    all: unset;
+    box-sizing: border-box;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    margin-top: 6px;
+    padding: 6px;
+    border-radius: 7px;
+    font-size: 0.78rem;
+    color: var(--mat-sys-primary, #3b82f6);
+
+    .material-icons { font-size: 17px; }
+
+    &:hover { background: var(--capa-hover); }
+  }
+}
+
+header,
+footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  flex: 0 0 auto;
+  height: var(--barra);
+}
+
+header {
+  border-bottom: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+
+  .tools {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    /* Empuja el botón de guardar al extremo contrario del de descartar. */
+    margin-right: auto;
+    margin-left: 8px;
+  }
+}
+
+footer {
+  border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  gap: 6px;
+}
+
+.sep {
+  width: 1px;
+  height: 22px;
+  background: var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.16));
+  margin: 0 4px;
+}
+
+.tb {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  color: var(--mat-sys-on-surface, #1a1a1a);
+  cursor: pointer;
+
+  .material-icons {
+    font-size: 20px;
+  }
+
+  &:hover:not(:disabled) {
+    background: var(--capa-hover);
+  }
+
+  &.activa {
+    background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 18%, transparent);
+    color: var(--mat-sys-primary, #3b82f6);
+  }
+
+  &:disabled {
+    opacity: 0.32;
+    cursor: default;
+  }
+
+  &.guardar {
+    color: var(--verde-ok);
+  }
+
+  /* Con la cuenta de columnas al lado del icono, así que no es cuadrado. */
+  &.ancho {
+    width: auto;
+    gap: 5px;
+    padding: 0 9px;
+  }
+
+  .cuenta {
+    font-size: 0.74rem;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Miniatura dentro de un botón de la barra (cambiar de forma en el pie). */
+  .mini {
+    width: 26px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.6;
+  }
+}
+
+.escena {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  /* Un cuadriculado tenue: sin él, un esquema con dos nodos flota en el vacío y
+     no se percibe ni el tamaño de la zona de trabajo ni cuánto se ha movido. */
+  background:
+    linear-gradient(var(--capa-suave) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, var(--capa-suave) 1px, transparent 1px) 0 0 / 24px 24px;
+}
+
+.marco {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  /* `touch-action: none` para que en un portátil con pantalla táctil arrastrar
+     un nodo no haga además desplazarse a la página. */
+  touch-action: none;
+
+  /* Ojo: el tamaño del SVG NO se puede fijar desde aquí. Lo crea `dibujar()` con
+     `createElementNS`, así que no lleva el `[_ngcontent-…]` que Angular sella en
+     los selectores de un estilo de componente, y una regla `svg { … }` puesta
+     aquí no lo alcanza — el mismo tropiezo que documenta `.bloque-secreto`.
+     Vive en `styles.scss`, junto al resto de `.esq-svg`. */
+
+  &.conectando {
+    cursor: crosshair;
+  }
+
+  &.moviendo {
+    cursor: grab;
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
+}
+
+.pista {
+  margin: 0;
+  font-size: 12px;
+  color: var(--texto-tenue);
+  user-select: none;
+}
+
+.etiqueta {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 420px;
+  box-sizing: border-box;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.2));
+  border-radius: 8px;
+  font: inherit;
+  font-size: 0.86rem;
+  color: inherit;
+  background: none;
+
+  &:focus {
+    outline: none;
+    border-color: var(--mat-sys-primary, #3b82f6);
+  }
+}
+
+/* Menú de tipos de flecha. Flotante, anclado donde se pulsó la conexión.
+   El SVG de la miniatura SÍ puede llevar estilos de componente: lo pinta
+   Angular desde la plantilla, así que lleva su `_ngcontent` — al revés que el
+   del lienzo, que crea `dibujar()` a mano. */
+.menu-flecha {
+  position: absolute;
+  z-index: 6;
+  width: 232px;
+  max-height: 440px;
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+  border-radius: 12px;
+  background: var(--mat-sys-surface-container, #fff);
+  box-shadow: 0 12px 32px var(--sombra-color);
+
+  h3 {
+    margin: 8px 0 3px 4px;
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--texto-tenue);
+  }
+
+  section:first-child h3 {
+    margin-top: 0;
+  }
+
+  .tipo {
+    all: unset;
+    box-sizing: border-box;
+    width: 100%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 6px;
+    border-radius: 7px;
+
+    &:hover {
+      background: var(--capa-hover);
+    }
+
+    &.activa {
+      background: color-mix(in srgb, var(--mat-sys-primary, #3b82f6) 16%, transparent);
+    }
+
+    span {
+      font-size: 0.76rem;
+    }
+  }
+
+  .mini-flecha {
+    flex: 0 0 60px;
+    height: 22px;
+
+    .linea,
+    .marca {
+      stroke: currentColor;
+      stroke-width: 1.4;
+      fill: none;
+    }
+
+    /* Mismos patrones que en el lienzo, para que la miniatura no mienta. */
+    .trazo-discontinuo { stroke-dasharray: 6 4; }
+    .trazo-punteado { stroke-dasharray: 1.5 3; }
+
+    .relleno-tinta { fill: currentColor; }
+    .relleno-fondo { fill: var(--mat-sys-surface-container, #fff); }
+  }
+
+  .invertir {
+    all: unset;
+    box-sizing: border-box;
+    width: 100%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 7px 6px;
+    border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+    font-size: 0.76rem;
+
+    .material-icons { font-size: 18px; }
+
+    &:hover { background: var(--capa-hover); }
+  }
+}

@@ -34,6 +34,24 @@ export const EVENTO_IMAGEN = 'pedir-imagen';
 /** Aviso para abrir el diálogo del bloque cifrado (ver `editor/secreto.ts`). */
 export const EVENTO_SECRETO = 'pedir-secreto';
 /**
+ * Un bloque de esquema pide abrir su editor de dibujo.
+ *
+ * Por el DOM y no desde la extensión, por lo mismo que la imagen: abrir un
+ * diálogo de Material es cosa del componente, que es quien puede inyectar
+ * `MatDialog`. Lo escucha `editor.ts` sobre el DOM del editor.
+ */
+export const EVENTO_ESQUEMA = 'pedir-esquema';
+/**
+ * Un bloque de esquema pide guardarse como fichero.
+ *
+ * Va aparte de `EVENTO_ESQUEMA` porque son dos intenciones distintas: aquel
+ * abre el editor y puede acabar cambiando la nota; este solo saca una copia y no
+ * toca el documento. Y por el DOM por el mismo motivo que el otro: el selector
+ * de fichero del sistema y el comando de Tauri viven en el componente, no en una
+ * vista de nodo de ProseMirror.
+ */
+export const EVENTO_EXPORTAR_ESQUEMA = 'exportar-esquema';
+/**
  * Un bloque cifrado pide que se abra el candado de la bóveda.
  *
  * Va aparte de `EVENTO_SECRETO` porque son dos intenciones distintas: aquel
@@ -105,6 +123,32 @@ export const SLASH_ITEMS: SlashItem[] = [
     title: 'Código', subtitle: 'Bloque de código', icon: '</>',
     keywords: ['codigo', 'code', 'pre'],
     command: ({ editor, range }) => editor.chain().focus().deleteRange(range).toggleCodeBlock().run(),
+  },
+  {
+    title: 'Diagrama',
+    subtitle: 'Diagrama de flujo, secuencia… (Mermaid)',
+    // Glifo y no `iconoMaterial`: esa casilla se rellena con `--secreto-acento`,
+    // el ámbar que identifica al bloque cifrado. Aquí diría lo que no es.
+    icon: '◇',
+    keywords: ['diagrama', 'mermaid', 'grafico', 'flujo', 'flow', 'secuencia', 'graph', 'esquema'],
+    insercion: true,
+    command: ({ editor, range }) =>
+      editor.chain().focus().deleteRange(range).insertarDiagrama().run(),
+  },
+  {
+    title: 'Esquema',
+    subtitle: 'Dibujar arrastrando cajas y flechas',
+    icon: '◻',
+    keywords: ['esquema', 'dibujo', 'flujo', 'flowchart', 'cajas', 'flechas', 'grafo', 'visual'],
+    insercion: true,
+    command: ({ editor, range }) => {
+      editor.chain().focus().deleteRange(range).run();
+      // Se abre el editor con el lienzo en blanco; el bloque solo se inserta si
+      // el usuario acaba guardando algo (lo hace `editor.ts`).
+      editor.view.dom.dispatchEvent(
+        new CustomEvent(EVENTO_ESQUEMA, { bubbles: true, detail: { pos: null, datos: null } }),
+      );
+    },
   },
   {
     title: 'Divisor', subtitle: 'Línea horizontal', icon: '―',

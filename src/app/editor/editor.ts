@@ -22,7 +22,7 @@ import { Selection, TextSelection } from '@tiptap/pm/state';
 import { CellSelection } from '@tiptap/pm/tables';
 import { SuggestionKeyDownProps, SuggestionProps } from '@tiptap/suggestion';
 import { MatDialog } from '@angular/material/dialog';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { open as abrirEnSistema } from '@tauri-apps/plugin-shell';
 import { OverlayModule } from '@angular/cdk/overlay';
 import { TiptapBubbleMenuDirective, TiptapEditorDirective } from 'ngx-tiptap';
@@ -40,6 +40,8 @@ import { EntradaIndice, extraerIndice } from './indice';
 import { escalon, TAMANO_BASE, UNIDAD } from './tamano-texto';
 import {
   createSlashCommand,
+  EVENTO_ESQUEMA,
+  EVENTO_EXPORTAR_ESQUEMA,
   EVENTO_IMAGEN,
   EVENTO_SECRETO,
   EVENTO_SECRETO_ABIERTO,
@@ -47,6 +49,11 @@ import {
   SlashItem,
 } from './extensiones/slash-command';
 import { PeticionSecreto, Secreto } from './extensiones/secreto';
+import { Diagrama } from './extensiones/diagrama';
+import { BloqueEsquema, PeticionEsquema, PeticionExportar } from './extensiones/esquema';
+import { EsquemaDatos, EsquemaDialog, EsquemaResultado } from './esquema/esquema-dialog';
+import { Formato, exportarEsquema } from './esquema/exportar';
+import { normalizar } from './esquema/modelo';
 import { TituloPlegable } from './extensiones/titulo-plegable';
 import { SecretosService } from '../core/secretos.service';
 import { SecretoDatos, SecretoDialog, SecretoResultado } from '../shared/secreto-dialog/secreto-dialog';
@@ -244,6 +251,8 @@ export class EditorComponent implements OnDestroy {
         ColorAdaptable,
         ResaltadoAdaptable.configure({ multicolor: true }),
         Secreto,
+        Diagrama,
+        BloqueEsquema,
         AssetImage,
         /* Tabla. `resizable` añade el tirador entre columnas y guarda el ancho
            en `colwidth`; sin él la tabla reparte a partes iguales y no hay forma
@@ -356,6 +365,13 @@ export class EditorComponent implements OnDestroy {
       void this.abrirSecreto((ev as CustomEvent<PeticionSecreto>).detail),
     );
     this.editor.view.dom.addEventListener(EVENTO_SECRETO_ABRIR, () => void this.desbloquear());
+    this.editor.view.dom.addEventListener(EVENTO_ESQUEMA, (ev) =>
+      void this.abrirEsquema((ev as CustomEvent<PeticionEsquema>).detail),
+    );
+
+    this.editor.view.dom.addEventListener(EVENTO_EXPORTAR_ESQUEMA, (ev) =>
+      void this.exportarEsquemaA((ev as CustomEvent<PeticionExportar>).detail),
+    );
 
     // Cargar contenido solo cuando llega de fuera (abrir otro documento),
     // nunca como eco de la edición en curso: eso reiniciaría el cursor.
@@ -1113,6 +1129,77 @@ export class EditorComponent implements OnDestroy {
           return true;
         })
         .run();
+    }
+  }
+
+  /**
+   * Abre el editor de esquemas, y al cerrarlo guarda el dibujo en el bloque.
+   *
+   * A pantalla completa como el de anotar imágenes: dibujar necesita sitio, y en
+   * un diálogo pequeño no cabe ni un flujo de cuatro cajas.
+   */
+  private async abrirEsquema(peticion: PeticionEsquema): Promise<void> {
+    const ref = this.dialog.open<EsquemaDialog, EsquemaDatos, EsquemaResultado>(EsquemaDialog, {
+      data: { esquema: peticion.datos },
+      panelClass: 'panel-esquema',
+      width: '100vw',
+      maxWidth: '100vw',
+      height: '100vh',
+      // Esc lo gestiona el propio diálogo (primero suelta la flecha a medias,
+      // luego la selección, y solo entonces cierra).
+      disableClose: true,
+      autoFocus: 'dialog',
+    });
+
+    const datos = await firstValueFrom(ref.afterClosed());
+    if (!datos) return;
+
+    if (peticion.pos == null) {
+      // Un bloque nuevo sin un solo nodo sería un hueco vacío en la nota: si se
+      // salió del editor sin dibujar nada, no se inserta.
+      if (!datos.nodos.length) return;
+      this.editor.chain().focus().insertarEsquema(datos).run();
+      return;
+    }
+
+    // Reemplazar el nodo entero: `atom`, así que ocupa una sola posición.
+    this.editor
+      .chain()
+      .focus()
+      .command(({ tr }) => {
+        tr.setNodeMarkup(peticion.pos as number, undefined, { datos });
+        return true;
+      })
+      .run();
+  }
+
+  /**
+   * Guarda un esquema como fichero, en la ruta que elija el usuario.
+   *
+   * La ruta sale del selector nativo (`save` del plugin de diálogos) y la
+   * escritura de un comando de Rust: no hay plugin de `fs` instalado, y meterlo
+   * entero con su configuración de ámbitos por un solo uso es más superficie de
+   * la que hace falta.
+   *
+   * `save` devuelve `null` si se cancela, que no es un fallo: no se avisa de
+   * nada y el icono se queda como estaba.
+   */
+  private async exportarEsquemaA(peticion: PeticionExportar): Promise<void> {
+    const formato: Formato = peticion.formato;
+
+    try {
+      const ruta = await save({
+        defaultPath: `esquema.${formato}`,
+        filters: [{ name: formato.toUpperCase(), extensions: [formato] }],
+      });
+      if (!ruta) return;
+
+      const blob = await exportarEsquema(normalizar(peticion.datos), formato);
+      await this.assets.exportarFichero(ruta, await blobABase64(blob));
+      peticion.hecho?.(true);
+    } catch (e) {
+      console.error('No se pudo exportar el esquema:', e);
+      peticion.hecho?.(false);
     }
   }
 

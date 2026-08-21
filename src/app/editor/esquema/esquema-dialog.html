@@ -1,0 +1,291 @@
+<div class="esquemador">
+  <header>
+    <button type="button" class="tb" (click)="cancelar()" title="Descartar" aria-label="Descartar">
+      <span class="material-icons">close</span>
+    </button>
+
+    <div class="tools">
+      <button
+        type="button"
+        class="tb"
+        [class.activa]="menuFormas()"
+        (click)="menuFormas.set(!menuFormas())"
+        title="Formas"
+        aria-label="Formas para diagramar"
+        [attr.aria-expanded]="menuFormas()">
+        <span class="material-icons">category</span>
+      </button>
+
+      <span class="sep"></span>
+
+      <button
+        type="button"
+        class="tb"
+        [class.activa]="herramienta() === 'seleccionar'"
+        (click)="elegirHerramienta('seleccionar')"
+        title="Seleccionar y editar"
+        aria-label="Seleccionar y editar">
+        <span class="material-icons">near_me</span>
+      </button>
+      <button
+        type="button"
+        class="tb"
+        [class.activa]="herramienta() === 'mover'"
+        (click)="elegirHerramienta('mover')"
+        title="Mover el lienzo"
+        aria-label="Mover el lienzo">
+        <span class="material-icons">pan_tool</span>
+      </button>
+      <button
+        type="button"
+        class="tb"
+        [class.activa]="herramienta() === 'conectar'"
+        (click)="elegirHerramienta('conectar')"
+        title="Conectar dos nodos"
+        aria-label="Conectar dos nodos">
+        <span class="material-icons">arrow_right_alt</span>
+      </button>
+
+      <span class="sep"></span>
+
+      <button
+        type="button"
+        class="tb"
+        (click)="centrar()"
+        title="Volver al centro"
+        aria-label="Volver al centro">
+        <span class="material-icons">filter_center_focus</span>
+      </button>
+      <button
+        type="button"
+        class="tb"
+        (click)="borrar()"
+        [disabled]="!cuantosSel()"
+        title="Borrar lo seleccionado (Supr)"
+        aria-label="Borrar lo seleccionado">
+        <span class="material-icons">delete</span>
+      </button>
+    </div>
+
+    <button type="button" class="tb guardar" (click)="guardar()" title="Guardar">
+      <span class="material-icons">check</span>
+    </button>
+  </header>
+
+  @if (menuFormas()) {
+    <div class="panel-formas">
+      @for (fam of grupos; track fam.id) {
+        <section>
+          <h3>{{ fam.nombre }}</h3>
+          <div class="rejilla">
+            @for (f of fam.formas; track f.id) {
+              <button type="button" class="forma" (click)="anadir(f.id)" [title]="f.nombre">
+                <!-- La miniatura la dibuja el propio catálogo, así que el menú
+                     enseña exactamente la forma que se va a insertar. -->
+                <svg class="mini" viewBox="0 0 44 30" aria-hidden="true">
+                  <path [attr.d]="miniatura(f)" />
+                </svg>
+                <span>{{ f.nombre }}</span>
+              </button>
+            }
+          </div>
+        </section>
+      }
+    </div>
+  }
+
+  <div class="escena">
+    <div
+      class="marco"
+      #lienzo
+      [class.conectando]="herramienta() === 'conectar'"
+      [class.moviendo]="herramienta() === 'mover'"
+      (pointerdown)="alPulsar($event)"
+      (pointermove)="alMover($event)"
+      (pointerup)="alSoltar()"
+      (pointercancel)="alSoltar()"
+      (pointerleave)="alSalir()"></div>
+
+  </div>
+
+  <!-- Menú de la flecha. Flotante y anclado donde se pulsó, no en una barra
+       fija: la flecha puede estar en cualquier parte del lienzo y arrastrar la
+       mirada de un lado a otro por cada cambio cansa. -->
+  @if (menuFlecha(); as pos) {
+    <div class="menu-flecha" [style.left.px]="pos.x" [style.top.px]="pos.y">
+      @for (fam of gruposConexion; track fam.id) {
+        <section>
+          <h3>{{ fam.nombre }}</h3>
+          @for (t of fam.tipos; track t.id) {
+            <button
+              type="button"
+              class="tipo"
+              [class.activa]="conexionSel()?.tipo === t.id"
+              (click)="cambiarTipoFlecha(t.id)"
+              [title]="t.nombre">
+              <!-- La miniatura sale del mismo catálogo que dibuja la flecha en
+                   el lienzo, así que enseña exactamente lo que va a quedar. -->
+              <svg class="mini-flecha" viewBox="0 0 60 22" aria-hidden="true">
+                <path [attr.d]="t.previa.linea" [attr.class]="'linea trazo-' + t.trazo" />
+                @for (m of t.previa.marcas; track $index) {
+                  <path [attr.d]="m.d" [attr.class]="'marca relleno-' + m.relleno" />
+                }
+              </svg>
+              <span>{{ t.nombre }}</span>
+            </button>
+          }
+        </section>
+      }
+
+      <button type="button" class="invertir" (click)="invertirFlecha()">
+        <span class="material-icons">swap_horiz</span>
+        Invertir el sentido
+      </button>
+    </div>
+  }
+
+  <!-- Lista de columnas de la tabla seleccionada. Cuelga de `tablaSel()`, así
+       que al deseleccionar o al cambiar a otra forma se va sola. Va superpuesta
+       sobre el lienzo y no empujándolo, igual que el panel de formas. -->
+  @if (panelColumnas() && tablaSel(); as tabla) {
+    <div class="panel-columnas">
+      <h3>Columnas de {{ tabla.texto || 'la tabla' }}</h3>
+
+      @for (col of columnas(); track $index) {
+        <div class="fila">
+          <!-- PK y FK son dos interruptores y no una lista de opciones: una
+               columna de tabla puente es las dos cosas a la vez. -->
+          <button
+            type="button"
+            class="marca"
+            [class.activa]="col.pk"
+            (click)="alternarClave($index, 'pk')"
+            [attr.aria-pressed]="!!col.pk"
+            title="Clave primaria">PK</button>
+          <button
+            type="button"
+            class="marca"
+            [class.activa]="col.fk"
+            (click)="alternarClave($index, 'fk')"
+            [attr.aria-pressed]="!!col.fk"
+            title="Clave foránea">FK</button>
+
+          <input
+            type="text"
+            class="nombre"
+            [value]="col.nombre"
+            (input)="renombrarColumna($index, $any($event.target).value)"
+            placeholder="nombre"
+            aria-label="Nombre de la columna" />
+          <input
+            type="text"
+            class="tipo"
+            [value]="col.tipo ?? ''"
+            (input)="tiparColumna($index, $any($event.target).value)"
+            placeholder="tipo"
+            aria-label="Tipo de la columna" />
+
+          <button
+            type="button"
+            class="orden"
+            (click)="subirColumna($index)"
+            [disabled]="$first"
+            title="Subir"
+            aria-label="Subir la columna">
+            <span class="material-icons">arrow_upward</span>
+          </button>
+          <button
+            type="button"
+            class="orden"
+            (click)="bajarColumna($index)"
+            [disabled]="$last"
+            title="Bajar"
+            aria-label="Bajar la columna">
+            <span class="material-icons">arrow_downward</span>
+          </button>
+          <button
+            type="button"
+            class="orden quitar"
+            (click)="quitarColumna($index)"
+            title="Quitar la columna"
+            aria-label="Quitar la columna">
+            <span class="material-icons">close</span>
+          </button>
+        </div>
+      } @empty {
+        <p class="pista">Sin columnas todavía.</p>
+      }
+
+      <button type="button" class="anadir" (click)="anadirColumna()">
+        <span class="material-icons">add</span>
+        Añadir columna
+      </button>
+    </div>
+  }
+
+  <!-- El pie está SIEMPRE, tenga o no algo seleccionado. Si apareciera y
+       desapareciera, la escena cambiaría de alto en cada clic y el dibujo daría
+       un salto justo debajo del ratón. Cuando no hay selección aloja la pista,
+       que es la lección del bloque de Mermaid: una herramienta que no dice lo
+       que hace no la usa nadie. -->
+  <footer class="propiedades">
+    @if (cuantosSel() === 1) {
+      <input
+        type="text"
+        class="etiqueta"
+        [value]="etiqueta()"
+        (input)="cambiarTexto($any($event.target).value)"
+        placeholder="Texto"
+        aria-label="Texto de lo seleccionado" />
+
+      @if (tablaSel(); as tabla) {
+        <span class="sep"></span>
+        <button
+          type="button"
+          class="tb ancho"
+          [class.activa]="panelColumnas()"
+          (click)="panelColumnas.set(!panelColumnas())"
+          [attr.aria-expanded]="panelColumnas()"
+          title="Columnas de la tabla">
+          <span class="material-icons">view_list</span>
+          <span class="cuenta">{{ columnas().length }}</span>
+        </button>
+      }
+
+      @if (nodoSel(); as n) {
+        <span class="sep"></span>
+        <!-- Solo las de su propia familia: con veinte formas, ofrecerlas todas
+             aquí sería un muro, y cambiar un rombo de BPMN por un cilindro de
+             flujo casi nunca es lo que se quiere. Para eso está el panel. -->
+        @for (f of hermanas(n.forma); track f.id) {
+          <button
+            type="button"
+            class="tb"
+            [class.activa]="n.forma === f.id"
+            (click)="cambiarForma(f.id)"
+            [title]="'Cambiar a ' + f.nombre">
+            <svg class="mini" viewBox="0 0 44 30" aria-hidden="true">
+              <path [attr.d]="miniatura(f)" />
+            </svg>
+          </button>
+        }
+      }
+    } @else if (cuantosSel() > 1) {
+      <p class="pista">
+        {{ cuantosSel() }} seleccionados · arrastra cualquiera para moverlos todos
+      </p>
+    } @else {
+      <p class="pista">
+        @if (herramienta() === 'mover') {
+          Arrastra para moverte por el lienzo. Nada se modifica en este modo.
+        } @else if (herramienta() === 'conectar') {
+          Pulsa el nodo de origen y luego el de destino.
+        } @else if (!esquema().nodos.length) {
+          Añade un nodo con los botones de arriba, y arrástralo donde quieras.
+        } @else {
+          Arrastra para mover · barre el lienzo para elegir varios · Ctrl+clic para sumar
+        }
+      </p>
+    }
+  </footer>
+</div>

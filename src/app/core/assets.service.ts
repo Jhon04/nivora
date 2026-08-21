@@ -59,4 +59,16 @@ export class AssetsService {
   leerImagen(ruta: string): Promise<ImagenLeida> {
     return invoke<ImagenLeida>('leer_imagen', { ruta });
   }
+
+  /**
+   * Escribe un fichero FUERA de la bóveda, en la ruta que el usuario haya
+   * elegido en el selector del sistema (exportar un esquema).
+   *
+   * Está aquí y no en el componente por lo mismo que el resto: `invoke` no sale
+   * de `core/`. Y no usa `guardar`, que copiaría el fichero dentro de la bóveda
+   * y lo metería en la sincronización — justo lo contrario de exportar.
+   */
+  exportarFichero(ruta: string, datosBase64: string): Promise<void> {
+    return invoke<void>('exportar_fichero', { ruta, datosBase64 });
+  }
 }

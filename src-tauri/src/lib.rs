@@ -106,6 +106,7 @@ pub fn run() {
             commands::importar_asset,
             commands::importar_icono,
             commands::leer_imagen,
+            commands::exportar_fichero,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

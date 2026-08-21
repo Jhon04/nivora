@@ -1175,6 +1175,470 @@ body {
   .bloque-secreto .secreto-barra { animation: none; }
 }
 
+/* Bloque de diagrama (NodeView, ver editor/extensiones/diagrama.ts). Va aquí y
+   no en editor.scss porque el DOM lo crea el NodeView a mano: no lleva el
+   `_ngcontent` del componente y los estilos con ámbito no lo alcanzarían. */
+.bloque-diagrama {
+  margin: 0.9rem 0;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+  border-radius: 8px;
+  overflow: hidden;
+
+  .diagrama-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 3px 4px 3px 10px;
+    background: var(--capa-suave);
+  }
+
+  .diagrama-rotulo {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--texto-tenue);
+  }
+
+  .diagrama-alternar {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    padding: 5px;
+    border-radius: 6px;
+    color: var(--mat-sys-on-surface, #1a1a1a);
+    opacity: 0.65;
+
+    .material-icons { font-size: 17px; }
+
+    &:hover { opacity: 1; background: var(--capa-hover); }
+  }
+
+  /* Mientras quepan van uno al lado del otro; cuando no, se apilan solos. Un
+     `flex-basis` en `ch` mide en anchos de carácter, que es justo el criterio:
+     el código deja de ser legible por debajo de unas 26 columnas. */
+  .diagrama-cuerpo {
+    display: flex;
+    flex-wrap: wrap;
+  }
+
+  .diagrama-codigo {
+    flex: 1 1 26ch;
+    min-width: 0;
+    box-sizing: border-box;
+    resize: vertical;
+    min-height: 7.5rem;
+    padding: 10px 12px;
+    border: none;
+    border-right: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+    outline: none;
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 0.82rem;
+    line-height: 1.55;
+    tab-size: 2;
+    white-space: pre;
+    overflow-wrap: normal;
+    /* Sin barra horizontal: en Mermaid las líneas son cortas y partirlas
+       confundiría la sangría, que aquí significa algo. */
+    overflow-x: auto;
+    color: inherit;
+    background: none;
+
+    &::placeholder { color: var(--texto-tenue); }
+  }
+
+  .diagrama-vista {
+    flex: 1 1 26ch;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    padding: 12px;
+    /* Un diagrama ancho se desplaza dentro de su caja; nunca empuja el ancho de
+       la nota ni saca una barra horizontal a la página entera. */
+    overflow-x: auto;
+
+    svg {
+      max-width: 100%;
+      height: auto;
+    }
+  }
+
+  .diagrama-error {
+    margin: 0;
+    padding: 7px 12px;
+    border-top: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    font-size: 0.74rem;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    color: var(--mat-sys-error, #b3261e);
+
+    /* Vacío no ocupa: el borde superior de un error inexistente sería una raya
+       suelta cruzando el bloque. */
+    &:empty { display: none; }
+  }
+
+  /* Solo dibujo: el campo se va y la vista se queda con todo el ancho. */
+  &[data-modo='vista'] {
+    .diagrama-codigo { display: none; }
+    .diagrama-vista { flex-basis: 100%; }
+  }
+
+  &.ProseMirror-selectednode {
+    outline: 2px solid var(--mat-sys-primary, #3b82f6);
+    outline-offset: 1px;
+  }
+}
+
+/* SVG del esquema (ver editor/esquema/dibujo.ts). Global porque lo pintan dos
+   sitios —la vista previa de la nota y el diálogo— y en ninguno lo genera
+   Angular, así que no lleva `_ngcontent` de ningún componente.
+
+   Todo el color vive aquí y ninguno en el SVG. Eso es lo que hace que el esquema
+   cambie de tema sin repintarse, al revés que el bloque de Mermaid, que incrusta
+   sus colores al renderizar y obliga a generarlo de nuevo. */
+.esq-svg {
+  /* El trazo va por `currentColor` y el relleno por los tokens de Material, en
+     vez de por colores propios: son los mismos que usa el resto de la app, así
+     que el esquema acompaña al tema sin definir una paleta paralela que se
+     quede desfasada. `currentColor` hereda del `color` de aquí abajo. */
+  color: var(--mat-sys-on-surface, #1a1a1a);
+  --esq-relleno: var(--mat-sys-surface-container, #fff);
+  --esq-sel: var(--mat-sys-primary, #3b82f6);
+
+  display: block;
+  max-width: 100%;
+
+  .esq-forma {
+    fill: var(--esq-relleno);
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  /* Trazos de dentro: divisiones de una clase, el aspa de una compuerta, la
+     tapa de un cilindro. Sin relleno — si lo tuvieran, taparían la silueta. */
+  .esq-adorno {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.5;
+  }
+
+  .esq-texto text {
+    fill: currentColor;
+    font: 500 13px Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /* Banda del nombre de una tabla. Un tinte del propio color de la tinta, no un
+     gris fijo: en tema oscuro un gris claro la convertiría en una franja que
+     grita más que el nombre que lleva dentro. Sin borde — el trazo lo pone el
+     adorno que hay justo debajo. */
+  .esq-banda {
+    fill: color-mix(in srgb, currentColor 9%, transparent);
+    stroke: none;
+  }
+
+  /* Filas de una tabla. El cuerpo de letra va a la par con `TAM_TEXTO` y
+     `TAM_TIPO` de `modelo.ts`: allí se mide para calcular el ancho de la caja y
+     aquí se pinta, así que si se separan el texto deja de caber. */
+  .esq-columna text {
+    fill: currentColor;
+    font: 400 13px Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /* La clave primaria en negrita, además de la llave: el icono se pierde al
+     alejar el esquema y el grosor de la letra aguanta más.
+
+     700 y no 600: de Roboto solo se sirven 300/400/500/700 (ver el bloque de
+     `@font-face` de arriba), así que un 600 acabaría igualmente en el archivo de
+     700 por las reglas de emparejado. Pedirlo explícito quita un salto tácito, y
+     además deja la exportación con pesos que tienen archivo exacto. */
+  .esq-columna.clave text {
+    font-weight: 700;
+  }
+
+  .esq-tipo text {
+    fill: currentColor;
+    opacity: 0.6;
+    font: 400 11px Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  .esq-llave {
+    fill: currentColor;
+    stroke: none;
+  }
+
+  .esq-llave-paleton {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.3;
+  }
+
+  .esq-foranea {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.3;
+  }
+
+  .esq-linea {
+    stroke: currentColor;
+    stroke-width: 1.5;
+    fill: none;
+  }
+
+  .esq-punta {
+    fill: currentColor;
+  }
+
+  /* Patrones del trazo, por tipo de conexión. */
+  .esq-linea.trazo-discontinuo { stroke-dasharray: 7 5; }
+  .esq-linea.trazo-punteado { stroke-dasharray: 2 3.5; }
+
+  /* Marcas de los extremos (patas de gallo, rombos, triángulos…). El relleno lo
+     decide el catálogo: `fondo` es lo que hace hueco a un triángulo de herencia
+     y de paso le tapa la línea por debajo. */
+  .esq-marca {
+    stroke: currentColor;
+    stroke-width: 1.5;
+
+    &.relleno-ninguno { fill: none; }
+    &.relleno-tinta { fill: currentColor; }
+    &.relleno-fondo { fill: var(--esq-relleno); }
+  }
+
+  .esq-conexion.sel .esq-marca {
+    stroke: var(--esq-sel);
+
+    &.relleno-tinta { fill: var(--esq-sel); }
+  }
+
+  /* Solo para acertar con el ratón: invisible, pero ancho. Un trazo de 1,5 px es
+     imposible de pinchar con el pulso de nadie. */
+  .esq-tirador {
+    stroke: transparent;
+    stroke-width: 16;
+    fill: none;
+  }
+
+  .esq-etiqueta-fondo {
+    fill: var(--esq-relleno);
+  }
+
+  .esq-etiqueta text {
+    fill: currentColor;
+    font: 400 12px Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /* La flecha que se está trazando: a rayas, para que se distinga de las que ya
+     existen y se vea que todavía no está puesta. */
+  .esq-conexion.tentativa {
+    .esq-linea {
+      stroke: var(--esq-sel);
+      stroke-dasharray: 5 4;
+    }
+
+    .esq-punta { fill: var(--esq-sel); }
+  }
+
+  /* Punto de enganche. Pequeño en reposo para no ensuciar el dibujo; al
+     despertarse crece y le sale la flecha que anuncia lo que va a pasar. */
+  .esq-punto {
+    .esq-punto-disco {
+      fill: var(--esq-sel);
+      stroke: var(--esq-relleno);
+      stroke-width: 1.5;
+      /* El radio lo pone `dibujar`, y la transición lo acompaña: sin ella el
+         disco pega un salto y parece que hubieran aparecido dos puntos. */
+      transition: r 0.09s ease-out;
+    }
+
+    /* Asta y punta en el color del fondo: la flecha se lee como un hueco dentro
+       del disco, que a este tamaño se distingue mejor que otro color encima. */
+    .esq-punto-asta {
+      stroke: var(--esq-relleno);
+      stroke-width: 1.6;
+      stroke-linecap: round;
+    }
+
+    .esq-punto-punta {
+      fill: var(--esq-relleno);
+    }
+  }
+
+  /* Cerco del nodo con el que se va a enlazar. A opacidad plena y fuera del
+     grupo del fantasma: lo que tiene que quedar claro es CUÁL de todos. */
+  .esq-destino {
+    fill: none;
+    stroke: var(--esq-sel);
+    stroke-width: 2.5;
+    stroke-dasharray: 6 4;
+    pointer-events: none;
+  }
+
+  /* Rectángulo del barrido. Relleno muy tenue además del borde: solo con la
+     línea, sobre un lienzo con nodos, cuesta ver qué zona se está abarcando. */
+  .esq-marquesina {
+    fill: color-mix(in srgb, var(--esq-sel) 14%, transparent);
+    stroke: var(--esq-sel);
+    stroke-width: 1;
+    stroke-dasharray: 4 3;
+  }
+
+  /* Lo que aparecerá al pulsar: mismo dibujo, en tenue y a rayas. Nunca recibe
+     el ratón — el clic es del punto, no del fantasma. */
+  .esq-fantasma {
+    opacity: 0.45;
+    pointer-events: none;
+
+    .esq-forma,
+    .esq-linea {
+      stroke-dasharray: 5 4;
+    }
+  }
+
+  .esq-nodo.sel .esq-forma,
+  .esq-conexion.sel .esq-linea {
+    stroke: var(--esq-sel);
+    stroke-width: 2.5;
+  }
+
+  .esq-conexion.sel .esq-punta {
+    fill: var(--esq-sel);
+  }
+}
+
+/* El SVG del editor, anclado a los cuatro lados de su marco.
+   Va aquí y no en `esquema-dialog.scss` por la misma razón que todo lo de
+   arriba: lo crea `dibujar()` a mano y no lleva `_ngcontent`, así que las reglas
+   del componente no lo tocan. Anclarlo evita además depender de cómo dimensione
+   cada motor un SVG sin tamaño propio, que es lo que lo dejaba en ancho cero. */
+.esquemador .marco > .esq-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Bloque de esquema dentro de la nota (NodeView, ver extensiones/esquema.ts). */
+.bloque-esquema {
+  position: relative;
+  margin: 0.9rem 0;
+  padding: 8px;
+  border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.14));
+  border-radius: 8px;
+
+  .esquema-vista {
+    display: flex;
+    justify-content: center;
+
+    /* Tope de altura: un esquema alto no puede adueñarse de la nota entera. El
+       `viewBox` con `meet` lo encoge entero, sin recortarlo.
+       `width`/`height` en `auto` para que los topes escalen manteniendo la
+       proporción: `dibujar` pone medidas explícitas en el SVG —hacen falta para
+       que WebKit no lo colapse a cero— y sin esto actuarían como fijas. */
+    .esq-svg {
+      width: auto;
+      height: auto;
+      max-height: 420px;
+    }
+  }
+
+  .esquema-vacio {
+    margin: 0;
+    padding: 22px 0;
+    text-align: center;
+    font-size: 0.84rem;
+    color: var(--texto-tenue);
+  }
+
+  /* Aparece al pasar por encima: el botón siempre visible ensucia una nota que
+     solo se está leyendo. */
+  .esquema-acciones {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.12s ease;
+  }
+
+  .esquema-editar,
+  .esquema-exportar {
+    all: unset;
+    cursor: pointer;
+    display: inline-flex;
+    padding: 5px;
+    border-radius: 6px;
+    color: var(--mat-sys-on-surface, #1a1a1a);
+    background: var(--mat-sys-surface, #fff);
+
+    .material-icons { font-size: 17px; }
+
+    &:hover { background: var(--capa-hover); }
+
+    &[hidden] { display: none; }
+  }
+
+  /* Los iconos aparecen al pasar por encima, pero el menú de formatos abierto
+     los mantiene: si se desvanecieran al llevar el ratón al menú, el botón del
+     que acaba de salir se iría bajo el cursor. */
+  &:hover .esquema-acciones,
+  .esquema-acciones:focus-within {
+    opacity: 0.75;
+  }
+
+  &:has(.esquema-formatos:not([hidden])) .esquema-acciones {
+    opacity: 1;
+  }
+
+  .esquema-formatos {
+    position: absolute;
+    top: 34px;
+    right: 6px;
+    z-index: 4;
+    display: flex;
+    flex-direction: column;
+    min-width: 190px;
+    padding: 4px;
+    border: 1px solid var(--mat-sys-outline-variant, rgba(0, 0, 0, 0.12));
+    border-radius: 10px;
+    background: var(--mat-sys-surface-container, #fff);
+    box-shadow: 0 10px 26px var(--sombra-color);
+
+    &[hidden] { display: none; }
+
+    button {
+      all: unset;
+      box-sizing: border-box;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      padding: 6px 9px;
+      border-radius: 7px;
+      color: var(--mat-sys-on-surface, #1a1a1a);
+
+      &:hover { background: var(--capa-hover); }
+
+      strong {
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+
+      span {
+        font-size: 0.68rem;
+        color: var(--texto-tenue);
+      }
+    }
+  }
+
+  &.ProseMirror-selectednode {
+    outline: 2px solid var(--mat-sys-primary, #3b82f6);
+    outline-offset: 1px;
+  }
+}
+
 /* Destello del bloque recién soltado: azul translúcido que se apaga solo. La
    duración debe coincidir con DESTELLO_MS de block-drag.ts. */
 .ProseMirror .block-soltado {
@@ -1262,6 +1726,15 @@ body {
 .panel-anotar {
   --mat-dialog-container-shape: 0;
   --mat-dialog-container-color: #0e0e12;
+  --mat-dialog-container-elevation-shadow: none;
+}
+
+/* El editor de esquemas también va a pantalla completa, pero NO en oscuro fijo:
+   sigue el tema, porque el dibujo se verá dentro de la nota y editarlo con otros
+   colores de los que va a tener sería enseñar algo que no es. */
+.panel-esquema {
+  --mat-dialog-container-shape: 0;
+  --mat-dialog-container-color: var(--mat-sys-surface, #fff);
   --mat-dialog-container-elevation-shadow: none;
 }
 
