@@ -445,8 +445,9 @@ body {
 
   /* Bloques escondidos por un título plegado. `display: none` y no `height: 0`:
      tienen que salir del layout del todo, o el índice y el handle de arrastre
-     seguirían encontrándolos por sus coordenadas. */
-  .plegado-oculto { display: none; }
+     seguirían encontrándolos por sus coordenadas. Solo en pantalla: el PDF
+     lleva la nota entera. */
+  @media screen { .plegado-oculto { display: none; } }
 
   /* Cita: una barra a la izquierda, en vez de la sangría de 40 px que traen los
      navegadores por defecto. Así el texto de la cita sigue alineado con el del
@@ -1749,5 +1750,71 @@ body {
 
   .mat-mdc-dialog-container .mdc-dialog__surface {
     padding: 0;
+  }
+}
+
+/* Exportar a PDF (imprimir). La app es una ventana de 100vh con la nota en un
+   contenedor con scroll propio: impresa tal cual, WebKit no tiene nada que
+   paginar. Aquí se aplana todo al flujo normal y se deja solo la nota.
+   El tema se fuerza a claro porque los colores son light-dark(). */
+@media print {
+  html, html[data-tema] { color-scheme: light; }
+
+  html, body, .app, .pane, .pane-cuerpo, .pane-scroll {
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+  }
+
+  body { background: #fff !important; }
+
+  app-barra-lateral,
+  app-barra-herramientas,
+  app-aviso-actualizacion,
+  app-indice-nota,
+  .aviso-banda,
+  .btn-indice,
+  .doc-acciones,
+  .doc-estado,
+  .cover-acciones,
+  .code-copy,
+  .cdk-overlay-container,
+  .etiqueta-input,
+  .chip-x,
+  .plegar-caret,
+  .diagrama-barra,
+  .esquema-acciones,
+  .esquema-formatos,
+  .secreto-acciones,
+  .secreto-barra,
+  .secreto-abrir {
+    display: none !important;
+  }
+
+  /* Un secreto revelado no sale nunca en claro: el PDF es un fichero que se
+     va de la app. Se quita el valor del documento (no basta con hacerlo
+     transparente, el texto seguiría dentro del PDF) y se pinta la máscara. */
+  .bloque-secreto[data-estado='visible'] .secreto-valor { display: none !important; }
+  .bloque-secreto[data-estado='visible'] .secreto-campo::after { content: '••••••••••'; }
+
+  /* Que no se partan por la mitad, y que un título no se quede solo al pie. */
+  .ProseMirror img,
+  .ProseMirror pre,
+  .ProseMirror blockquote,
+  .ProseMirror tr,
+  .bloque-diagrama,
+  .bloque-esquema,
+  .bloque-secreto {
+    break-inside: avoid;
+  }
+  .ProseMirror h1, .ProseMirror h2, .ProseMirror h3, .ProseMirror h4 {
+    break-after: avoid;
+  }
+
+  /* El marco de bloque seleccionado es del editor, no de la nota. */
+  .ProseMirror .ProseMirror-selectednode,
+  .ProseMirror-selectednode {
+    outline: none !important;
+    box-shadow: none !important;
   }
 }

@@ -5,6 +5,7 @@ mod db;
 mod escritorio;
 mod github;
 mod models;
+mod pdf;
 mod secretos;
 mod sincro;
 
@@ -107,6 +108,7 @@ pub fn run() {
             commands::importar_icono,
             commands::leer_imagen,
             commands::exportar_fichero,
+            pdf::exportar_pdf,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

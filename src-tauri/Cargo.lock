@@ -2605,6 +2605,7 @@ dependencies = [
  "chacha20poly1305",
  "chrono",
  "git2",
+ "gtk",
  "image",
  "keyring",
  "log",
@@ -2622,6 +2623,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tokio",
  "uuid",
+ "webkit2gtk",
 ]
 
 [[package]]

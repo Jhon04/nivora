@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { JSONContent } from '@tiptap/core';
-import { open } from '@tauri-apps/plugin-dialog';
+import { open, save } from '@tauri-apps/plugin-dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
@@ -84,6 +84,8 @@ export class App implements OnInit {
   protected readonly actual = signal<Documento | null>(null);
   protected readonly estadoGuardado = signal<EstadoGuardado>('idle');
   protected readonly error = signal<string | null>(null);
+  /** Hay un PDF generándose: el botón se apaga para no lanzar dos. */
+  protected readonly exportandoPdf = signal(false);
   protected readonly iconoAbierto = signal(false);
 
   /**
@@ -297,6 +299,35 @@ export class App implements OnInit {
   }
 
   /**
+   * Guarda la nota abierta como PDF, en la ruta que elija el usuario.
+   *
+   * `save` devuelve `null` si se cancela, que no es un fallo. Algunos selectores
+   * no añaden la extensión del filtro, así que se pone aquí si falta.
+   */
+  async exportarPdf(): Promise<void> {
+    const doc = this.actual();
+    if (!doc || this.exportandoPdf()) return;
+
+    const nombre = doc.titulo.replace(/[\\/:*?"<>|]/g, '').trim() || 'Sin título';
+    const elegida = await save({
+      defaultPath: `${nombre}.pdf`,
+      filters: [{ name: 'PDF', extensions: ['pdf'] }],
+    });
+    if (!elegida) return;
+    const ruta = elegida.toLowerCase().endsWith('.pdf') ? elegida : `${elegida}.pdf`;
+
+    this.exportandoPdf.set(true);
+    this.error.set(null);
+    try {
+      await this.assets.exportarPdf(ruta);
+    } catch (e) {
+      this.error.set(this.msg(e));
+    } finally {
+      this.exportandoPdf.set(false);
+    }
+  }
+
+  /**
    * Suelta el documento abierto sin guardarlo (ya se vació antes).
    *
    * Sin documento no hay barra de herramientas: al destruirse se lleva por
@@ -499,6 +530,12 @@ export class App implements OnInit {
     if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 's') {
       ev.preventDefault();
       void this.guardarAuto();
+    }
+    // Ctrl/Cmd+P: imprimir es exportar a PDF, en vez del diálogo de impresión
+    // de WebKit.
+    if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'p') {
+      ev.preventDefault();
+      void this.exportarPdf();
     }
   }
 

@@ -71,4 +71,12 @@ export class AssetsService {
   exportarFichero(ruta: string, datosBase64: string): Promise<void> {
     return invoke<void>('exportar_fichero', { ruta, datosBase64 });
   }
+
+  /**
+   * Guarda la nota abierta como PDF en `ruta`. Rust imprime el propio webview
+   * sin diálogo; lo que sale lo decide el `@media print` de `styles.scss`.
+   */
+  exportarPdf(ruta: string): Promise<void> {
+    return invoke<void>('exportar_pdf', { ruta });
+  }
 }

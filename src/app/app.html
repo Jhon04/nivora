@@ -140,6 +140,13 @@
                 }
               </div>
 
+              <button type="button" class="mini-btn" (click)="exportarPdf()" [disabled]="exportandoPdf()"
+                title="Guardar la nota como PDF (Ctrl+P)">
+                <span class="material-icons" [class.girando]="exportandoPdf()">
+                  {{ exportandoPdf() ? 'sync' : 'picture_as_pdf' }}</span>
+                {{ exportandoPdf() ? 'Exportando…' : 'PDF' }}
+              </button>
+
               <!-- El candado solo lo mueve el dueño de la bóveda. Rust lo comprueba
                  igualmente: esto es la comodidad, no la defensa. -->
               @if (bovedas.soyDueno() && !bovedas.soloLectura()) {

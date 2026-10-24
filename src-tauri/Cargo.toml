@@ -42,8 +42,14 @@ keyring = { version = "3.6.3", features = ["sync-secret-service", "crypto-rust",
 # API de GitHub (device flow, crear repo). `rustls` en vez de native-tls para no
 # depender del OpenSSL del sistema en cada plataforma.
 reqwest = { version = "0.13.3", default-features = false, features = ["rustls", "json", "charset", "http2", "form"] }
-tokio = { version = "1.53.1", default-features = false, features = ["time"] }
+tokio = { version = "1.53.1", default-features = false, features = ["time", "sync"] }
 chacha20poly1305 = "0.10.1"
 argon2 = "0.5.3"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
+
+# Exportar a PDF imprimiendo el webview sin diálogo (src/pdf.rs). Mismas
+# versiones que ya arrastra tauri/wry, no se compila nada nuevo.
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = "2.0"
+gtk = "0.18"
